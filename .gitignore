@@ -1,4 +1,6 @@
 server/.env
+__pycache__/
+*.pyc
 server/mosquitto/data/*
 !server/mosquitto/data/.gitkeep
 server/mosquitto/log/*
