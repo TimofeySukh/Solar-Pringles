@@ -40,6 +40,14 @@ Default published ports:
 - FastAPI scaffold on `127.0.0.1:18000`
 - Frontend scaffold on `127.0.0.1:13000`
 
+The repository now also includes an edge node implementation:
+
+```bash
+cp edge/.env.example edge/.env
+python3 -m pip install -r edge/requirements.txt
+python3 edge/solar_node.py
+```
+
 ## Configuration
 
 The planned runtime stack is:
@@ -61,6 +69,13 @@ Initial server layout:
 - `server/worker/`
 - `server/frontend/`
 - `server/data/exports/`
+
+Edge layout:
+
+- `edge/solar_node.py`
+- `edge/.env.example`
+- `edge/requirements.txt`
+- `edge/systemd/sollar-panel-edge.service`
 
 The MVP backend now exposes:
 

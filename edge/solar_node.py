@@ -1,0 +1,255 @@
+from __future__ import annotations
+
+import csv
+import json
+import logging
+import os
+import signal
+import sys
+import time
+from collections import deque
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from threading import Event, Lock
+
+import board
+import busio
+import paho.mqtt.client as mqtt
+from adafruit_ads1x15.ads1115 import ADS1115
+from adafruit_ads1x15.analog_in import AnalogIn
+
+
+logging.basicConfig(
+    level=os.getenv("SOLAR_LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+LOGGER = logging.getLogger("solar.node")
+
+
+def utc_now_iso() -> str:
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+@dataclass(slots=True)
+class Settings:
+    sensor_id: str = os.getenv("SOLAR_SENSOR_ID", "pringles_1")
+    mqtt_host: str = os.getenv("SOLAR_MQTT_HOST", "")
+    mqtt_port: int = int(os.getenv("SOLAR_MQTT_PORT", "1884"))
+    mqtt_topic: str = os.getenv("SOLAR_MQTT_TOPIC", "sensor/solar/voltage")
+    sample_interval_seconds: float = float(os.getenv("SOLAR_SAMPLE_INTERVAL_SECONDS", "1.0"))
+    smoothing_window: int = int(os.getenv("SOLAR_SMOOTHING_WINDOW", "10"))
+    backup_path: str = os.getenv("SOLAR_BACKUP_PATH", "/opt/sollar_panel/solar_backup.csv")
+    ads_i2c_address: int = int(os.getenv("SOLAR_ADS_I2C_ADDRESS", "0x48"), 16)
+    ads_gain: int = int(os.getenv("SOLAR_ADS_GAIN", "4"))
+
+    def validate(self) -> None:
+        if not self.mqtt_host:
+            raise ValueError("SOLAR_MQTT_HOST must be configured")
+        if self.smoothing_window < 1:
+            raise ValueError("SOLAR_SMOOTHING_WINDOW must be at least 1")
+        if self.sample_interval_seconds <= 0:
+            raise ValueError("SOLAR_SAMPLE_INTERVAL_SECONDS must be positive")
+
+
+class BackupWriter:
+    def __init__(self, path: str) -> None:
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        file_exists = self.path.exists()
+        self._file = self.path.open("a", newline="", encoding="utf-8")
+        self._writer = csv.writer(self._file)
+        if not file_exists:
+            self._writer.writerow(["timestamp", "raw_voltage", "smoothed_voltage"])
+            self._file.flush()
+
+    def write_row(self, timestamp: str, raw_voltage: float, smoothed_voltage: float) -> None:
+        self._writer.writerow(
+            [
+                timestamp,
+                f"{raw_voltage:.6f}",
+                f"{smoothed_voltage:.6f}",
+            ]
+        )
+        self._file.flush()
+
+    def close(self) -> None:
+        self._file.close()
+
+
+class SensorReader:
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+        self._chan: AnalogIn | None = None
+        self._samples: deque[float] = deque(maxlen=settings.smoothing_window)
+
+    def _connect(self) -> None:
+        while self._chan is None:
+            try:
+                LOGGER.info(
+                    "Initializing ADS1115 on I2C address %s with gain %s",
+                    hex(self.settings.ads_i2c_address),
+                    self.settings.ads_gain,
+                )
+                i2c = busio.I2C(board.SCL, board.SDA)
+                ads = ADS1115(i2c, address=self.settings.ads_i2c_address)
+                ads.gain = self.settings.ads_gain
+                self._chan = AnalogIn(ads, 0)
+                LOGGER.info("ADS1115 ready on channel 0")
+            except Exception as exc:
+                LOGGER.warning("ADS1115 initialization failed: %s", exc)
+                time.sleep(2)
+
+    def read(self) -> tuple[float, float] | None:
+        if self._chan is None:
+            self._connect()
+
+        try:
+            raw_voltage = float(self._chan.voltage)
+        except OSError as exc:
+            errno_value = getattr(exc, "errno", None)
+            if errno_value in {5, 121}:
+                LOGGER.warning("Transient I2C read error (%s): %s", errno_value, exc)
+                return None
+            LOGGER.exception("Unexpected I2C OSError")
+            return None
+        except Exception as exc:
+            LOGGER.exception("Unexpected sensor read failure: %s", exc)
+            self._chan = None
+            return None
+
+        self._samples.append(raw_voltage)
+        smoothed_voltage = sum(self._samples) / len(self._samples)
+        return raw_voltage, smoothed_voltage
+
+
+class MqttPublisher:
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+        self.connected = Event()
+        self.stop_requested = Event()
+        self._connect_lock = Lock()
+
+        callback_api_version = getattr(mqtt, "CallbackAPIVersion", None)
+        if callback_api_version is not None:
+            self.client = mqtt.Client(
+                callback_api_version.VERSION2,
+                client_id=f"{settings.sensor_id}-publisher",
+                clean_session=True,
+            )
+        else:
+            self.client = mqtt.Client(
+                client_id=f"{settings.sensor_id}-publisher",
+                clean_session=True,
+            )
+
+        self.client.enable_logger(LOGGER)
+        self.client.reconnect_delay_set(min_delay=1, max_delay=30)
+        self.client.on_connect = self.on_connect
+        self.client.on_disconnect = self.on_disconnect
+
+    def on_connect(self, _client, _userdata, _flags, reason_code, _properties=None) -> None:
+        if getattr(reason_code, "is_failure", False):
+            LOGGER.error("MQTT connection failed: %s", reason_code)
+            self.connected.clear()
+            return
+
+        LOGGER.info("Connected to MQTT broker at %s:%s", self.settings.mqtt_host, self.settings.mqtt_port)
+        self.connected.set()
+
+    def on_disconnect(self, _client, _userdata, reason_code, _properties=None) -> None:
+        self.connected.clear()
+        if self.stop_requested.is_set():
+            LOGGER.info("MQTT client disconnected")
+            return
+        LOGGER.warning("MQTT disconnected with reason code %s; automatic reconnect is active", reason_code)
+
+    def start(self) -> None:
+        with self._connect_lock:
+            LOGGER.info("Starting MQTT client")
+            self.client.connect_async(self.settings.mqtt_host, self.settings.mqtt_port, keepalive=60)
+            self.client.loop_start()
+
+    def publish(self, payload: dict[str, object]) -> None:
+        message = json.dumps(payload, separators=(",", ":"))
+        result = self.client.publish(self.settings.mqtt_topic, message, qos=1)
+
+        if result.rc == mqtt.MQTT_ERR_SUCCESS:
+            LOGGER.info(
+                "Published telemetry: raw_voltage=%s smoothed_voltage=%s",
+                payload["raw_voltage"],
+                payload["smoothed_voltage"],
+            )
+            return
+
+        LOGGER.warning("MQTT publish queued unsuccessfully with rc=%s; retaining local backup only", result.rc)
+
+    def stop(self) -> None:
+        self.stop_requested.set()
+        self.client.loop_stop()
+        self.client.disconnect()
+
+
+class SolarNode:
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+        self.stop_requested = Event()
+        self.sensor_reader = SensorReader(settings)
+        self.mqtt_publisher = MqttPublisher(settings)
+        self.backup_writer = BackupWriter(settings.backup_path)
+
+    def _build_payload(self, raw_voltage: float, smoothed_voltage: float) -> dict[str, object]:
+        return {
+            "sensor_id": self.settings.sensor_id,
+            "timestamp": utc_now_iso(),
+            "raw_voltage": round(raw_voltage, 6),
+            "smoothed_voltage": round(smoothed_voltage, 6),
+        }
+
+    def stop(self, *_args) -> None:
+        LOGGER.info("Stop requested")
+        self.stop_requested.set()
+
+    def run(self) -> None:
+        self.mqtt_publisher.start()
+        signal.signal(signal.SIGTERM, self.stop)
+        signal.signal(signal.SIGINT, self.stop)
+
+        try:
+            while not self.stop_requested.is_set():
+                loop_started_at = time.monotonic()
+                reading = self.sensor_reader.read()
+
+                if reading is not None:
+                    raw_voltage, smoothed_voltage = reading
+                    payload = self._build_payload(raw_voltage, smoothed_voltage)
+                    self.backup_writer.write_row(
+                        payload["timestamp"],
+                        raw_voltage=raw_voltage,
+                        smoothed_voltage=smoothed_voltage,
+                    )
+                    self.mqtt_publisher.publish(payload)
+
+                elapsed = time.monotonic() - loop_started_at
+                sleep_for = max(0.0, self.settings.sample_interval_seconds - elapsed)
+                self.stop_requested.wait(sleep_for)
+        finally:
+            self.mqtt_publisher.stop()
+            self.backup_writer.close()
+
+
+def main() -> int:
+    settings = Settings()
+    try:
+        settings.validate()
+    except ValueError as exc:
+        LOGGER.error("Configuration error: %s", exc)
+        return 1
+
+    node = SolarNode(settings)
+    node.run()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

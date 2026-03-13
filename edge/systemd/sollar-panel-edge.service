@@ -1,0 +1,18 @@
+[Unit]
+Description=Sollar Panel Edge Node
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tim
+WorkingDirectory=/opt/sollar_panel
+EnvironmentFile=/opt/sollar_panel/.env
+ExecStart=/usr/bin/python3 /opt/sollar_panel/solar_node.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

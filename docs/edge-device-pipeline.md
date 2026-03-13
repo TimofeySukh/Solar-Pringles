@@ -40,10 +40,9 @@ Required ADS1115 settings:
 
 Use a simple moving average with a window size of `5` or `10` readings.
 
-Recommended default:
+Implemented default:
 
-- use `5` as the starting window size to keep the UI responsive
-- allow future configuration if field testing shows that `10` is more stable
+- use `10` readings for stronger smoothing under noisy low-light conditions
 
 ### Read Error Handling
 
@@ -72,6 +71,7 @@ Recommended payload fields:
 - `timestamp`
 - `raw_voltage`
 - `smoothed_voltage`
+- `sensor_id`
 
 MQTT behavior requirements:
 
@@ -101,6 +101,23 @@ The edge process should be treated as a long-running service with defensive beha
 - never fail hard on transient ADC read errors
 - continue sampling during MQTT outages
 - keep a local CSV trail even when the network path is unavailable
+
+## Implemented Node
+
+The repository now includes a production-ready node implementation in `edge/solar_node.py`.
+
+Behavior:
+
+- initializes ADS1115 on address `0x48`
+- uses `AnalogIn(ads, 0)`
+- sets `ads.gain = 4`
+- catches transient `OSError` values such as `Errno 5` and `Errno 121`
+- skips the failed iteration instead of crashing
+- computes a 10-sample simple moving average
+- publishes to MQTT using `paho-mqtt`
+- writes every successful sample to `solar_backup.csv`
+- calls `flush()` after each backup row
+- is deployable under `systemd` with `edge/systemd/sollar-panel-edge.service`
 
 ## Suggested Data Semantics
 
