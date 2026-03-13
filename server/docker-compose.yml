@@ -1,0 +1,101 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: solar-mosquitto
+    restart: unless-stopped
+    ports:
+      - "${SOLAR_MQTT_HOST_PORT:-1884}:1883"
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    networks:
+      - solar-net
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: solar-influxdb
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SOLAR_INFLUXDB_HOST_PORT:-18086}:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_INIT_USERNAME}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_INIT_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_INIT_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_INIT_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_INIT_ADMIN_TOKEN}
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+    networks:
+      - solar-net
+
+  worker:
+    build:
+      context: ./worker
+    container_name: solar-worker
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+      - influxdb
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_TOPIC: ${MQTT_TOPIC}
+      MQTT_USERNAME: ${MQTT_USERNAME}
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
+      MQTT_CLIENT_ID: ${MQTT_CLIENT_ID}
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: ${INFLUXDB_INIT_ADMIN_TOKEN}
+      INFLUXDB_ORG: ${INFLUXDB_INIT_ORG}
+      INFLUXDB_BUCKET: ${INFLUXDB_INIT_BUCKET}
+      INFLUXDB_MEASUREMENT: ${INFLUXDB_MEASUREMENT}
+      INFLUXDB_SENSOR_ID: ${INFLUXDB_SENSOR_ID}
+    networks:
+      - solar-net
+
+  backend:
+    build:
+      context: ./backend
+    container_name: solar-backend
+    restart: unless-stopped
+    depends_on:
+      - influxdb
+    environment:
+      API_TITLE: Sollar Panel API
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_ORG: ${INFLUXDB_INIT_ORG}
+      INFLUXDB_BUCKET: ${INFLUXDB_INIT_BUCKET}
+    ports:
+      - "127.0.0.1:${SOLAR_BACKEND_HOST_PORT:-18000}:8000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz').read()\"",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - solar-net
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: solar-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:${SOLAR_FRONTEND_HOST_PORT:-13000}:3000"
+    networks:
+      - solar-net
+
+networks:
+  solar-net:
+    name: solar-net
+
+volumes:
+  influxdb-data:

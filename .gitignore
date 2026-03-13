@@ -1,0 +1,7 @@
+server/.env
+server/mosquitto/data/*
+!server/mosquitto/data/.gitkeep
+server/mosquitto/log/*
+!server/mosquitto/log/.gitkeep
+server/data/exports/*
+!server/data/exports/.gitkeep

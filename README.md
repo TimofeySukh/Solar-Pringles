@@ -24,14 +24,21 @@ The current repository state is an architecture scaffold. It captures the edge-d
 
 ## Quickstart
 
-This repository does not contain the production code yet. Start with the implementation docs and rules:
+The server scaffold is now ready for a first review pass. Copy the environment template and start the containers:
 
 ```bash
 cd /home/tim/projects/sollar_panel
-ls docs
-sed -n '1,220p' docs/project-overview.md
-sed -n '1,240p' AGENT.md
+cp server/.env.example server/.env
+docker compose --env-file server/.env -f server/docker-compose.yml up --build -d
+docker compose --env-file server/.env -f server/docker-compose.yml ps
 ```
+
+Default published ports:
+
+- MQTT broker on `1884`
+- InfluxDB UI and API on `127.0.0.1:18086`
+- FastAPI scaffold on `127.0.0.1:18000`
+- Frontend scaffold on `127.0.0.1:13000`
 
 ## Configuration
 
@@ -44,6 +51,16 @@ The planned runtime stack is:
 - A separate frontend container for charts and status UI
 
 The server design assumes a strict isolation boundary from the already-running public website and a constrained host with about `3 GB` of free RAM.
+
+Initial server layout:
+
+- `server/docker-compose.yml`
+- `server/.env.example`
+- `server/mosquitto/config/mosquitto.conf`
+- `server/backend/`
+- `server/worker/`
+- `server/frontend/`
+- `server/data/exports/`
 
 ## Development
 

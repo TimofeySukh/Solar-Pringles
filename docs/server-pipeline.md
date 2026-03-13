@@ -44,6 +44,29 @@ To reduce maintenance and image sprawl on a small server:
 
 - prefer one shared Python codebase image with different commands for `ingestor`, `api`, and `exporter`
 
+### Initial Repository Layout
+
+The first committed scaffold uses:
+
+- `server/docker-compose.yml`
+- `server/.env.example`
+- `server/mosquitto/config/mosquitto.conf`
+- `server/backend/`
+- `server/worker/`
+- `server/frontend/`
+- `server/data/exports/`
+
+### Default Host Port Plan
+
+The initial compose file publishes:
+
+- MQTT on host port `1884`
+- InfluxDB on `127.0.0.1:18086`
+- FastAPI on `127.0.0.1:18000`
+- Frontend on `127.0.0.1:13000`
+
+This keeps the web-facing services local to the server for now, while still allowing the edge device to reach MQTT over the LAN.
+
 ## MQTT Ingestion
 
 ### Broker
@@ -68,6 +91,25 @@ Production-ready behavior should include:
 - database write retry handling
 - bounded logging that surfaces failures without flooding the disk
 - safe behavior during malformed payloads
+
+### Initial InfluxDB Structure
+
+The first storage contract is:
+
+- organization: `sollar_panel`
+- bucket: `solar_metrics`
+- measurement: `solar_voltage`
+
+Initial tags:
+
+- `sensor_id`
+
+Initial fields:
+
+- `raw_voltage`
+- `smoothed_voltage` when present
+
+The timestamp comes from the payload when available and falls back to current UTC when missing or invalid.
 
 ## Feature Engineering
 
