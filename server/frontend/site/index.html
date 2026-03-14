@@ -889,12 +889,14 @@
         const status = explicitStatus || classifyStatus(effectiveVoltage);
         const rawLast = point?.raw_voltage_last ?? point?.raw_voltage;
         const smoothedLast = point?.smoothed_voltage_last ?? point?.smoothed_voltage;
-        const rawMean5s = point?.raw_mean_5s;
+        const rawMeanWindow = point?.raw_mean_5s;
+        const rawMinWindow = point?.raw_min_5s;
+        const rawMaxWindow = point?.raw_max_5s;
         dom.statusLabel.textContent = status;
         dom.statusPill.className = `status-pill ${statusClass(status)}`;
         dom.currentVoltage.textContent = point ? formatVoltageValue(effectiveVoltage) : "--.-- V";
         dom.currentVoltageMeta.textContent = point
-          ? `Raw last ${rawLast?.toFixed(3) ?? "--.--"} V, smoothed last ${smoothedLast?.toFixed(3) ?? "--.--"} V, 5 s mean ${rawMean5s?.toFixed(3) ?? "--.--"} V`
+          ? `Raw last ${rawLast?.toFixed(3) ?? "--.--"} V, smoothed ${smoothedLast?.toFixed(3) ?? "--.--"} V, 1 s window ${rawMinWindow?.toFixed(3) ?? "--.--"}..${rawMaxWindow?.toFixed(3) ?? "--.--"} V, mean ${rawMeanWindow?.toFixed(3) ?? "--.--"} V`
           : "Waiting for the latest point from InfluxDB.";
         dom.lastUpdate.textContent = point
           ? `Last sample ${formatClock(point.timestamp_local ?? point.timestamp)} Copenhagen time`

@@ -34,7 +34,7 @@ Required ADS1115 settings:
 
 ### Frequency
 
-- sample once per second
+- sample five times per second
 
 ### Filtering
 
@@ -43,8 +43,8 @@ Use a simple moving average with a window size of `5` or `10` readings.
 Implemented default:
 
 - use `10` readings for stronger smoothing under noisy low-light conditions
-- keep local sampling at `1 Hz`
-- publish one aggregate MQTT packet every `5 seconds`
+- keep local sampling at `5 Hz`
+- publish one aggregate MQTT packet every `1 second`
 
 ### Read Error Handling
 
@@ -71,11 +71,11 @@ Publish to:
 Recommended payload fields:
 
 - `timestamp`
-- `raw_voltage_last`
-- `smoothed_voltage_last`
-- `raw_min_5s`
-- `raw_max_5s`
-- `raw_mean_5s`
+- `raw_voltage`
+- `smoothed_voltage`
+- `min_v`
+- `max_v`
+- `mean_v`
 - `sensor_id`
 - `uptime_seconds`
 
@@ -121,17 +121,18 @@ Behavior:
 - skips the failed iteration instead of crashing
 - computes a 10-sample simple moving average
 - publishes to MQTT using `paho-mqtt`
-- batches outbound MQTT payloads every `5 seconds`
+- batches outbound MQTT payloads every `1 second`
 - writes every successful sample to `solar_backup.csv`
 - calls `flush()` after each backup row
 - is deployable under `systemd` with `edge/systemd/sollar-panel-edge.service`
 
 ## Suggested Data Semantics
 
-- `raw_voltage_last`: most recent ADC-derived voltage inside the current 5-second publish window
-- `smoothed_voltage_last`: most recent moving-average value inside the current 5-second publish window
-- `raw_min_5s`: minimum raw voltage seen inside the current 5-second publish window
-- `raw_max_5s`: maximum raw voltage seen inside the current 5-second publish window
-- `raw_mean_5s`: mean raw voltage across the current 5-second publish window
+- `raw_voltage`: most recent ADC-derived voltage inside the current 1-second publish window
+- `smoothed_voltage`: most recent moving-average value inside the current 1-second publish window
+- `min_v`: minimum raw voltage seen inside the current 1-second publish window
+- `max_v`: maximum raw voltage seen inside the current 1-second publish window
+- `mean_v`: mean raw voltage across the current 1-second publish window
+- `sample_count`: number of edge samples included in the current publish window, normally `5`
 - `timestamp`: UTC ISO 8601 timestamp of the latest sample in the publish window
 - `uptime_seconds`: Raspberry Pi uptime reported from `/proc/uptime` for dashboard operations telemetry

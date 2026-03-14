@@ -54,8 +54,8 @@ class Settings:
     mqtt_host: str = os.getenv("SOLAR_MQTT_HOST", "")
     mqtt_port: int = int(os.getenv("SOLAR_MQTT_PORT", "1884"))
     mqtt_topic: str = os.getenv("SOLAR_MQTT_TOPIC", "sensor/solar/voltage")
-    sample_interval_seconds: float = float(os.getenv("SOLAR_SAMPLE_INTERVAL_SECONDS", "1.0"))
-    publish_interval_seconds: float = float(os.getenv("SOLAR_PUBLISH_INTERVAL_SECONDS", "5.0"))
+    sample_interval_seconds: float = float(os.getenv("SOLAR_SAMPLE_INTERVAL_SECONDS", "0.2"))
+    publish_interval_seconds: float = float(os.getenv("SOLAR_PUBLISH_INTERVAL_SECONDS", "1.0"))
     smoothing_window: int = int(os.getenv("SOLAR_SMOOTHING_WINDOW", "10"))
     backup_path: str = os.getenv("SOLAR_BACKUP_PATH", "/opt/sollar_panel/solar_backup.csv")
     ads_i2c_address: int = int(os.getenv("SOLAR_ADS_I2C_ADDRESS", "0x48"), 16)
@@ -209,10 +209,12 @@ class MqttPublisher:
 
         if result.rc == mqtt.MQTT_ERR_SUCCESS:
             LOGGER.info(
-                "Published aggregate telemetry: raw_last=%s smoothed_last=%s raw_mean_5s=%s",
-                payload["raw_voltage_last"],
-                payload["smoothed_voltage_last"],
-                payload["raw_mean_5s"],
+                "Published golden-second telemetry: raw=%s smoothed=%s min=%s max=%s samples=%s",
+                payload["raw_voltage"],
+                payload["smoothed_voltage"],
+                payload["min_v"],
+                payload["max_v"],
+                payload["sample_count"],
             )
             return
 
@@ -241,12 +243,12 @@ class SolarNode:
         payload: dict[str, object] = {
             "sensor_id": settings.sensor_id,
             "timestamp": latest.timestamp,
-            "raw_voltage_last": round(latest.raw_voltage, 6),
-            "smoothed_voltage_last": round(latest.smoothed_voltage, 6),
-            "raw_min_5s": round(min(raw_values), 6),
-            "raw_max_5s": round(max(raw_values), 6),
-            "raw_mean_5s": round(sum(raw_values) / len(raw_values), 6),
-            "sample_count_5s": len(samples),
+            "raw_voltage": round(latest.raw_voltage, 6),
+            "smoothed_voltage": round(latest.smoothed_voltage, 6),
+            "min_v": round(min(raw_values), 6),
+            "max_v": round(max(raw_values), 6),
+            "mean_v": round(sum(raw_values) / len(raw_values), 6),
+            "sample_count": len(samples),
         }
         uptime_seconds = system_uptime_seconds()
         if uptime_seconds is not None:

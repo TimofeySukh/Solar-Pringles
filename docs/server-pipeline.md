@@ -81,9 +81,9 @@ The ingestion worker must:
 
 - subscribe to `sensor/solar/voltage`
 - validate incoming payloads
-- map `raw_voltage_last` into the canonical `raw_voltage` field for compatibility
-- map `smoothed_voltage_last` into the canonical `smoothed_voltage` field for compatibility
-- persist the 5-second aggregate fields for analytics and ML feature engineering
+- accept 1-second aggregate payloads from the edge node
+- map `raw_voltage` and `smoothed_voltage` into canonical storage fields
+- persist `min_v`, `max_v`, `mean_v`, and `sample_count` while also keeping compatibility aliases for existing dashboards and historical queries
 - handle reconnects to both MQTT and the database without process crashes
 
 ### Reliability Requirements
@@ -113,6 +113,10 @@ Initial fields:
 - `smoothed_voltage` when present
 - `raw_voltage_last`
 - `smoothed_voltage_last`
+- `min_v`
+- `max_v`
+- `mean_v`
+- `sample_count`
 - `raw_min_5s`
 - `raw_max_5s`
 - `raw_mean_5s`
@@ -147,6 +151,7 @@ The current `ml_engine` implementation computes:
 Training cadence:
 
 - every 15 minutes
+- query data downsampled to a 5-second stride so online training stays lightweight while ingestion remains live at 1 point per second
 
 Current model choices:
 

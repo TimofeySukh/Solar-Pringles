@@ -63,6 +63,7 @@ class Settings:
     model_registry_dir: str = os.getenv("MODEL_REGISTRY_DIR", "/models")
     train_interval_minutes: int = int(os.getenv("ML_TRAIN_INTERVAL_MINUTES", "15"))
     lookback_days: int = int(os.getenv("ML_LOOKBACK_DAYS", "14"))
+    training_stride_seconds: int = int(os.getenv("ML_TRAINING_STRIDE_SECONDS", "5"))
     timezone_name: str = os.getenv("SOLAR_TIMEZONE", "Europe/Copenhagen")
     night_threshold: float = float(os.getenv("ML_NIGHT_THRESHOLD", "0.035"))
     day_threshold: float = float(os.getenv("ML_DAY_THRESHOLD", "0.24"))
@@ -95,6 +96,7 @@ from(bucket: "{self.settings.influxdb_bucket}")
   |> range(start: -{self.settings.lookback_days}d)
   |> filter(fn: (r) => r["_measurement"] == "{self.settings.influxdb_measurement}")
   |> filter(fn: (r) => r["sensor_id"] == "{self.settings.sensor_id}")
+  |> aggregateWindow(every: {self.settings.training_stride_seconds}s, fn: last, createEmpty: false)
   |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
   |> keep(
     columns: [

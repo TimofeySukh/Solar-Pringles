@@ -2,13 +2,13 @@
 
 Sollar Panel is an end-to-end IoT and machine learning pipeline that starts on a Raspberry Pi Zero 2 W and ends with a containerized backend, live command-center dashboard, and a phase-aware online-training loop for solar telemetry analysis.
 
-The current repository state is a working MVP: the edge node samples ADS1115 voltage data at `1 Hz`, batches MQTT publishes every `5 seconds`, the server stores telemetry in InfluxDB, the ML engine trains a two-stage phase-plus-regression stack every 15 minutes, and the frontend renders a real-time analytical deck.
+The current repository state is a working MVP: the edge node samples ADS1115 voltage data at `5 Hz`, publishes one aggregated MQTT packet per second, the server stores telemetry in InfluxDB, the ML engine trains a two-stage phase-plus-regression stack every 15 minutes, and the frontend renders a real-time analytical deck.
 
 ## Features
 
 - Resilient Raspberry Pi edge acquisition for ADS1115 over I2C.
 - MQTT-based ingestion with reconnect-safe behavior for unstable Wi-Fi and flaky sensor wiring.
-- Edge-side batching that keeps local sampling at `1 Hz` while publishing 5-second aggregates to reduce Raspberry Pi and network load.
+- Edge-side batching that keeps local sampling at `5 Hz` while publishing 1-second aggregates for a more live dashboard without overloading the Raspberry Pi.
 - Time-series storage plan with `InfluxDB` as the default recommendation for a low-memory server.
 - Phase-aware online training service with feature engineering and two-stage models every 15 minutes.
 - AI Insights for a light-only solar clock, sunset ETA, sunrise ETA, bias tracking, and confidence scoring.
@@ -52,9 +52,9 @@ python3 edge/solar_node.py
 
 The default edge runtime behavior is:
 
-- sample ADS1115 once per second
+- sample ADS1115 five times per second
 - append every successful sample to the local CSV backup
-- publish one aggregate MQTT packet every `5 seconds`
+- publish one aggregate MQTT packet every second
 
 ## Configuration
 
@@ -113,6 +113,7 @@ The current ML stack includes:
 - a night/sunrise regressor for sunrise ETA
 - engineered features such as raw voltage, smoothed voltage, rolling standard deviation, multi-window deltas, and `voltage_to_daily_max_ratio`
 - no `hour` or `minute` inputs for any live model, so the solar-clock estimate is driven purely by light behavior
+- a 5-second Influx downsampling step for training so the ML engine stays lightweight even when live ingestion runs at `1 Hz`
 
 ## Development
 
