@@ -202,10 +202,19 @@ from(bucket: "{self.settings.influxdb_bucket}")
         return f"{hour:02d}:{minute:02d}"
 
     @staticmethod
-    def _minutes_to_eta(predicted_minutes: float | None) -> str:
+    def _sanitize_eta(predicted_minutes: float | None) -> float | None:
         if predicted_minutes is None:
+            return None
+        if predicted_minutes < 0 or predicted_minutes > 1_440:
+            return None
+        return predicted_minutes
+
+    @staticmethod
+    def _minutes_to_eta(predicted_minutes: float | None) -> str:
+        sanitized = MlEngine._sanitize_eta(predicted_minutes)
+        if sanitized is None:
             return "Unavailable"
-        return f"{max(0, int(round(predicted_minutes)))} min"
+        return f"{int(round(sanitized))} min"
 
     def build_insights(self, prepared: pd.DataFrame) -> dict[str, Any]:
         latest = prepared.iloc[-1]
@@ -225,6 +234,9 @@ from(bucket: "{self.settings.influxdb_bucket}")
             sunset_eta = float(sunset_model["model"].predict(latest_features)[0])
         if sunrise_model["available"]:
             sunrise_eta = float(sunrise_model["model"].predict(latest_features)[0])
+
+        sunset_eta = self._sanitize_eta(sunset_eta)
+        sunrise_eta = self._sanitize_eta(sunrise_eta)
 
         available_confidences = [
             model["confidence"]
