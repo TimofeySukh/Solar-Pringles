@@ -158,6 +158,11 @@
         align-content: start;
       }
 
+      .insights-grid {
+        display: grid;
+        gap: 12px;
+      }
+
       .metric {
         padding: 16px 18px;
         border-radius: 18px;
@@ -329,6 +334,32 @@
                 </div>
               </div>
             </section>
+
+            <section class="card">
+              <p class="eyebrow">AI Insights</p>
+              <div class="insights-grid">
+                <div class="metric">
+                  <div class="metric-label">AI Time Estimate</div>
+                  <div class="metric-value" id="aiTimeEstimate">--:--</div>
+                  <div class="metric-subtext" id="aiTimeMeta">Waiting for ML engine output.</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-label">Estimated Sunset</div>
+                  <div class="metric-value" id="aiSunsetEstimate">Unavailable</div>
+                  <div class="metric-subtext" id="aiSunsetMeta">No trained sunset model yet.</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-label">Estimated Sunrise</div>
+                  <div class="metric-value" id="aiSunriseEstimate">Unavailable</div>
+                  <div class="metric-subtext" id="aiSunriseMeta">No trained sunrise model yet.</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-label">Confidence Level</div>
+                  <div class="metric-value" id="aiConfidenceLevel">Unavailable</div>
+                  <div class="metric-subtext" id="aiConfidenceMeta">Model error metrics will appear here.</div>
+                </div>
+              </div>
+            </section>
           </aside>
         </section>
 
@@ -343,6 +374,8 @@
       const MAX_POINTS = 720;
       const historyEndpoint = "/api/history";
       const liveEndpoint = "/api/live";
+      const insightsEndpoint = "/api/insights";
+      const dashboardTimezone = "Europe/Copenhagen";
 
       const dom = {
         currentVoltage: document.getElementById("currentVoltage"),
@@ -356,6 +389,14 @@
         streamHint: document.getElementById("streamHint"),
         connectionState: document.getElementById("connectionState"),
         footerNote: document.getElementById("footerNote"),
+        aiTimeEstimate: document.getElementById("aiTimeEstimate"),
+        aiTimeMeta: document.getElementById("aiTimeMeta"),
+        aiSunsetEstimate: document.getElementById("aiSunsetEstimate"),
+        aiSunsetMeta: document.getElementById("aiSunsetMeta"),
+        aiSunriseEstimate: document.getElementById("aiSunriseEstimate"),
+        aiSunriseMeta: document.getElementById("aiSunriseMeta"),
+        aiConfidenceLevel: document.getElementById("aiConfidenceLevel"),
+        aiConfidenceMeta: document.getElementById("aiConfidenceMeta"),
       };
 
       const chartContext = document.getElementById("voltageChart").getContext("2d");
@@ -454,6 +495,23 @@
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
+          timeZone: dashboardTimezone,
+        });
+      }
+
+      function formatDateTime(timestamp) {
+        const date = new Date(timestamp);
+        if (Number.isNaN(date.getTime())) {
+          return "Unknown";
+        }
+        return date.toLocaleString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          year: "numeric",
+          month: "short",
+          day: "2-digit",
+          timeZone: dashboardTimezone,
         });
       }
 
@@ -491,10 +549,10 @@
         dom.currentVoltageMeta.textContent = point
           ? `Raw ${point.raw_voltage?.toFixed(3) ?? "--.--"} V, smoothed ${point.smoothed_voltage?.toFixed(3) ?? "--.--"} V`
           : "Waiting for the latest point from InfluxDB.";
-        dom.lastUpdate.textContent = point ? `Last sample ${formatClock(point.timestamp)}` : "No samples yet";
+        dom.lastUpdate.textContent = point ? `Last sample ${formatClock(point.timestamp_local ?? point.timestamp)}` : "No samples yet";
         dom.statusChip.className = `status-chip ${statusClass(status)}`;
         dom.footerNote.textContent = point
-          ? `Live sensor update received at ${formatClock(point.timestamp)}.`
+          ? `Live sensor update received at ${formatClock(point.timestamp_local ?? point.timestamp)} Copenhagen time.`
           : "Monitoring sensor output in real time.";
       }
 
@@ -507,7 +565,7 @@
           return;
         }
 
-        const label = formatClock(point.timestamp);
+        const label = formatClock(point.timestamp_local ?? point.timestamp);
         const timestamps = voltageChart.data.datasets[0].timestamps || [];
         voltageChart.data.datasets[0].timestamps = timestamps;
         const lastTimestamp = voltageChart.data.datasets[0].timestamps?.slice(-1)[0];
@@ -552,7 +610,7 @@
 
         for (const point of payload.points) {
           timestamps.push(point.timestamp);
-          labels.push(formatClock(point.timestamp));
+          labels.push(formatClock(point.timestamp_local ?? point.timestamp));
           smoothedValues.push(point.smoothed_voltage ?? point.raw_voltage ?? null);
           rawValues.push(point.raw_voltage ?? null);
         }
@@ -565,6 +623,66 @@
         syncSampleCount();
         updateStatus(payload.latest, payload.condition);
         dom.connectionState.textContent = "History loaded";
+      }
+
+      function metricDetail(model, fallback) {
+        if (
+          !model ||
+          ((model.minutes_until === null || model.minutes_until === undefined) &&
+            (model.predicted_minutes === null || model.predicted_minutes === undefined))
+        ) {
+          return fallback;
+        }
+        const mae = model.mae_minutes !== null && model.mae_minutes !== undefined
+          ? `MAE ${model.mae_minutes} min`
+          : "MAE unavailable";
+        const r2 = model.r2_score !== null && model.r2_score !== undefined
+          ? `R² ${model.r2_score}`
+          : "R² unavailable";
+        return `${mae}, ${r2}.`;
+      }
+
+      function updateInsights(insights) {
+        if (!insights || !insights.available) {
+          dom.aiTimeEstimate.textContent = "--:--";
+          dom.aiTimeMeta.textContent = "ML engine has not produced a model snapshot yet.";
+          dom.aiSunsetEstimate.textContent = "Unavailable";
+          dom.aiSunsetMeta.textContent = "Sunset estimate will appear after enough day/night data accumulates.";
+          dom.aiSunriseEstimate.textContent = "Unavailable";
+          dom.aiSunriseMeta.textContent = "Sunrise estimate will appear after enough day/night data accumulates.";
+          dom.aiConfidenceLevel.textContent = "Unavailable";
+          dom.aiConfidenceMeta.textContent = "Confidence is based on holdout error from the latest training cycle.";
+          return;
+        }
+
+        dom.aiTimeEstimate.textContent = insights.ai_time_estimate?.display_time || "--:--";
+        dom.aiTimeMeta.textContent = metricDetail(
+          insights.ai_time_estimate,
+          "Time-of-day model is warming up.",
+        );
+        dom.aiSunsetEstimate.textContent = insights.estimated_sunset?.display_eta || "Unavailable";
+        dom.aiSunsetMeta.textContent = metricDetail(
+          insights.estimated_sunset,
+          "Sunset model is warming up.",
+        );
+        dom.aiSunriseEstimate.textContent = insights.estimated_sunrise?.display_eta || "Unavailable";
+        dom.aiSunriseMeta.textContent = metricDetail(
+          insights.estimated_sunrise,
+          "Sunrise model is warming up.",
+        );
+        dom.aiConfidenceLevel.textContent = insights.confidence_level || "Unavailable";
+        dom.aiConfidenceMeta.textContent = insights.latest_point
+          ? `Latest training point at ${formatDateTime(insights.latest_point.timestamp_local || insights.latest_point.timestamp)}.`
+          : "Confidence is based on holdout error from the latest training cycle.";
+      }
+
+      async function loadInsights() {
+        const response = await fetch(insightsEndpoint, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`Insights request failed with status ${response.status}`);
+        }
+        const payload = await response.json();
+        updateInsights(payload);
       }
 
       function connectLive() {
@@ -617,7 +735,17 @@
           dom.connectionState.textContent = "History unavailable";
           dom.streamHint.textContent = error.message;
         }
+        try {
+          await loadInsights();
+        } catch (error) {
+          dom.aiConfidenceMeta.textContent = error.message;
+        }
         connectLive();
+        window.setInterval(() => {
+          loadInsights().catch((error) => {
+            dom.aiConfidenceMeta.textContent = error.message;
+          });
+        }, 60_000);
       }
 
       boot();

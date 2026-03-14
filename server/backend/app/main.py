@@ -5,7 +5,9 @@ import json
 import os
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
+from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -24,10 +26,13 @@ class Settings:
     influxdb_org: str = os.getenv("INFLUXDB_ORG", "sollar_panel")
     influxdb_bucket: str = os.getenv("INFLUXDB_BUCKET", "solar_metrics")
     influxdb_measurement: str = os.getenv("INFLUXDB_MEASUREMENT", "solar_voltage")
-    default_sensor_id: str = os.getenv("INFLUXDB_SENSOR_ID", "edge-rpi-zero-2w")
+    default_sensor_id: str = os.getenv("INFLUXDB_SENSOR_ID", "pringles_1")
+    timezone_name: str = os.getenv("SOLAR_TIMEZONE", "Europe/Copenhagen")
+    model_registry_dir: str = os.getenv("MODEL_REGISTRY_DIR", "/models")
 
 
 SETTINGS = Settings()
+LOCAL_TIMEZONE = ZoneInfo(SETTINGS.timezone_name)
 
 
 class InfluxRepository:
@@ -76,9 +81,12 @@ from(bucket: "{self.settings.influxdb_bucket}")
         raw_voltage = record.values.get("raw_voltage")
         smoothed_voltage = record.values.get("smoothed_voltage")
         recorded_at = record.get_time()
+        recorded_at_utc = recorded_at.astimezone(UTC)
+        recorded_at_local = recorded_at_utc.astimezone(LOCAL_TIMEZONE)
 
         return {
-            "timestamp": recorded_at.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+            "timestamp": recorded_at_utc.isoformat().replace("+00:00", "Z"),
+            "timestamp_local": recorded_at_local.isoformat(),
             "sensor_id": record.values.get("sensor_id"),
             "raw_voltage": float(raw_voltage) if raw_voltage is not None else None,
             "smoothed_voltage": float(smoothed_voltage) if smoothed_voltage is not None else None,
@@ -92,8 +100,10 @@ from(bucket: "{self.settings.influxdb_bucket}")
         return None
 
     def fetch_history(self, sensor_id: str, target_day: date, every_minutes: int) -> list[dict[str, Any]]:
-        start = datetime.combine(target_day, time.min, tzinfo=UTC)
-        stop = start + timedelta(days=1)
+        start_local = datetime.combine(target_day, time.min, tzinfo=LOCAL_TIMEZONE)
+        stop_local = start_local + timedelta(days=1)
+        start = start_local.astimezone(UTC)
+        stop = stop_local.astimezone(UTC)
         tables = self.query_api.query(self._history_query(sensor_id, start, stop, every_minutes))
         rows: list[dict[str, Any]] = []
         for table in tables:
@@ -157,6 +167,17 @@ def format_sse(event: str, data: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {payload}\n\n"
 
 
+def local_now() -> datetime:
+    return datetime.now(LOCAL_TIMEZONE)
+
+
+def read_latest_insights() -> dict[str, Any] | None:
+    insights_path = Path(SETTINGS.model_registry_dir) / "insights" / "latest.json"
+    if not insights_path.exists():
+        return None
+    return json.loads(insights_path.read_text(encoding="utf-8"))
+
+
 @app.get("/healthz")
 def healthz(request: Request) -> dict[str, str]:
     repository = get_repository(request)
@@ -176,6 +197,7 @@ async def api_status(request: Request, sensor_id: str | None = None) -> dict[str
         "bucket": SETTINGS.influxdb_bucket,
         "org": SETTINGS.influxdb_org,
         "measurement": SETTINGS.influxdb_measurement,
+        "timezone": SETTINGS.timezone_name,
         "latest": latest,
         "condition": classify_status(effective_voltage(latest)) if latest else "No data",
     }
@@ -190,7 +212,7 @@ async def api_history(
 ) -> dict[str, Any]:
     repository = get_repository(request)
     parsed_sensor_id = parse_sensor_id(sensor_id)
-    target_day = day or utc_now().date()
+    target_day = day or local_now().date()
 
     points = await asyncio.to_thread(repository.fetch_history, parsed_sensor_id, target_day, interval_minutes)
     latest = points[-1] if points else None
@@ -199,10 +221,24 @@ async def api_history(
         "sensor_id": parsed_sensor_id,
         "day": target_day.isoformat(),
         "interval_minutes": interval_minutes,
+        "timezone": SETTINGS.timezone_name,
         "points": points,
         "latest": latest,
         "condition": classify_status(effective_voltage(latest)) if latest else "No data",
     }
+
+
+@app.get("/api/insights")
+def api_insights() -> dict[str, Any]:
+    insights = read_latest_insights()
+    if insights is None:
+        return {
+            "available": False,
+            "timezone": SETTINGS.timezone_name,
+            "message": "ML insights are not ready yet",
+        }
+    insights["available"] = True
+    return insights
 
 
 @app.get("/api/live")
@@ -219,6 +255,7 @@ async def api_live(request: Request, sensor_id: str | None = None) -> StreamingR
                 "state": "connected",
                 "sensor_id": parsed_sensor_id,
                 "at": utc_now().isoformat().replace("+00:00", "Z"),
+                "at_local": local_now().isoformat(),
             },
         )
 

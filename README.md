@@ -9,8 +9,8 @@ The current repository state is an architecture scaffold. It captures the edge-d
 - Resilient Raspberry Pi edge acquisition design for ADS1115 over I2C.
 - MQTT-based ingestion with reconnect-safe behavior for unstable Wi-Fi and flaky sensor wiring.
 - Time-series storage plan with `InfluxDB` as the default recommendation for a low-memory server.
-- Feature engineering plan for deltas, rolling variance, and a heuristic illumination index.
-- Daily dataset export path for Jupyter-based model training.
+- Online training service for lightweight solar models every 15 minutes.
+- AI Insights for time-of-day, sunset ETA, sunrise ETA, and confidence scoring.
 - Lightweight API and live dashboard plan with strict Docker isolation.
 - Cloudflare Tunnel routing guidance that keeps the existing public site intact.
 
@@ -55,6 +55,7 @@ The planned runtime stack is:
 - `mosquitto` for MQTT
 - `influxdb` for time-series storage
 - Python workers for ingestion and daily export
+- `ml_engine` for online model training and model registry refresh
 - `FastAPI` for history and live data delivery
 - A separate frontend container for charts and status UI
 
@@ -67,6 +68,7 @@ Initial server layout:
 - `server/mosquitto/config/mosquitto.conf`
 - `server/backend/`
 - `server/worker/`
+- `server/ml_engine/`
 - `server/frontend/`
 - `server/data/exports/`
 
@@ -81,9 +83,10 @@ The MVP backend now exposes:
 
 - `GET /api/history` for aggregated day data
 - `GET /api/live` as an SSE stream for real-time telemetry
+- `GET /api/insights` for online-training output and confidence scores
 - `GET /api/status` for a compact runtime summary
 
-The frontend is a single-file dashboard that proxies API traffic through Nginx and renders a real-time Chart.js line chart plus a heuristic status widget.
+The frontend is a single-file dashboard that proxies API traffic through Nginx and renders a real-time Chart.js line chart, a heuristic status widget, and an AI Insights panel.
 
 ## Development
 

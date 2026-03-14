@@ -37,6 +37,7 @@ Recommended services:
 - `influxdb`
 - `ingestor`
 - `api`
+- `ml_engine`
 - `frontend`
 - optional `exporter` or scheduled job container
 
@@ -53,6 +54,7 @@ The first committed scaffold uses:
 - `server/mosquitto/config/mosquitto.conf`
 - `server/backend/`
 - `server/worker/`
+- `server/ml_engine/`
 - `server/frontend/`
 - `server/data/exports/`
 
@@ -120,6 +122,32 @@ The first feature set should include:
 - `rolling_variance`
 - `illumination_index`
 
+### Implemented Online-Training Features
+
+The current `ml_engine` implementation computes:
+
+- `hour`
+- `minute`
+- `volt_velocity`
+- `rolling_mean_5min`
+- `effective_voltage` as the base training signal
+
+Training cadence:
+
+- every 15 minutes
+
+Current model choices:
+
+- lightweight `LinearRegression` models to respect the small memory budget
+
+Current targets:
+
+- local time-of-day estimate
+- `time_to_sunset`
+- `time_to_sunrise`
+
+Model artifacts and latest insight snapshots are written into a shared `/models` volume.
+
 ### Suggested Semantics
 
 - `delta_v_5s`: current `raw_voltage` minus the value from 5 seconds earlier
@@ -167,12 +195,26 @@ The current scaffold now includes:
 
 - `GET /api/history`
 - `GET /api/live`
+- `GET /api/insights`
 - `GET /api/status`
 - `GET /healthz`
 
 `/api/live` uses Server-Sent Events so the frontend can stream updates without reloading the page.
 
 `/api/history` returns aggregated day data from InfluxDB with a configurable interval in minutes.
+
+`/api/insights` serves the latest ML snapshot written by `ml_engine`.
+
+### Timezone Handling
+
+The system now treats `Europe/Copenhagen` as the application timezone for:
+
+- day-boundary queries
+- frontend chart labels
+- ML feature extraction
+- AI insight presentation
+
+Stored telemetry remains in UTC inside InfluxDB. This avoids rewriting historical points or creating artificial gaps when changing timezone behavior.
 
 ## Frontend
 
@@ -198,6 +240,7 @@ It includes:
 - a current voltage panel
 - a live connection state indicator
 - a heuristic condition badge based on voltage thresholds
+- an AI Insights panel for predicted local time, sunset ETA, sunrise ETA, and confidence level
 
 Suggested status labels:
 

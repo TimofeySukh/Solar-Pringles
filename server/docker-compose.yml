@@ -3,6 +3,8 @@ services:
     image: eclipse-mosquitto:2
     container_name: solar-mosquitto
     restart: unless-stopped
+    environment:
+      TZ: Europe/Copenhagen
     ports:
       - "${SOLAR_MQTT_HOST_PORT:-1884}:1883"
     volumes:
@@ -19,6 +21,7 @@ services:
     ports:
       - "127.0.0.1:${SOLAR_INFLUXDB_HOST_PORT:-18086}:8086"
     environment:
+      TZ: Europe/Copenhagen
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_INIT_USERNAME}
       DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_INIT_PASSWORD}
@@ -39,6 +42,7 @@ services:
       - mosquitto
       - influxdb
     environment:
+      TZ: Europe/Copenhagen
       MQTT_HOST: mosquitto
       MQTT_PORT: 1883
       MQTT_TOPIC: ${MQTT_TOPIC}
@@ -51,6 +55,7 @@ services:
       INFLUXDB_BUCKET: ${INFLUXDB_INIT_BUCKET}
       INFLUXDB_MEASUREMENT: ${INFLUXDB_MEASUREMENT}
       INFLUXDB_SENSOR_ID: ${INFLUXDB_SENSOR_ID}
+      SOLAR_TIMEZONE: Europe/Copenhagen
     networks:
       - solar-net
 
@@ -62,6 +67,7 @@ services:
     depends_on:
       - influxdb
     environment:
+      TZ: Europe/Copenhagen
       API_TITLE: Sollar Panel API
       INFLUXDB_URL: http://influxdb:8086
       INFLUXDB_TOKEN: ${INFLUXDB_INIT_ADMIN_TOKEN}
@@ -69,6 +75,10 @@ services:
       INFLUXDB_BUCKET: ${INFLUXDB_INIT_BUCKET}
       INFLUXDB_MEASUREMENT: ${INFLUXDB_MEASUREMENT}
       INFLUXDB_SENSOR_ID: ${INFLUXDB_SENSOR_ID}
+      SOLAR_TIMEZONE: Europe/Copenhagen
+      MODEL_REGISTRY_DIR: /models
+    volumes:
+      - ml-models:/models:ro
     ports:
       - "127.0.0.1:${SOLAR_BACKEND_HOST_PORT:-18000}:8000"
     healthcheck:
@@ -84,6 +94,30 @@ services:
     networks:
       - solar-net
 
+  ml_engine:
+    build:
+      context: ./ml_engine
+    container_name: solar-ml-engine
+    restart: unless-stopped
+    depends_on:
+      - influxdb
+    environment:
+      TZ: Europe/Copenhagen
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: ${INFLUXDB_INIT_ADMIN_TOKEN}
+      INFLUXDB_ORG: ${INFLUXDB_INIT_ORG}
+      INFLUXDB_BUCKET: ${INFLUXDB_INIT_BUCKET}
+      INFLUXDB_MEASUREMENT: ${INFLUXDB_MEASUREMENT}
+      INFLUXDB_SENSOR_ID: ${INFLUXDB_SENSOR_ID}
+      SOLAR_TIMEZONE: Europe/Copenhagen
+      MODEL_REGISTRY_DIR: /models
+      ML_TRAIN_INTERVAL_MINUTES: 15
+      ML_LOOKBACK_DAYS: 14
+    volumes:
+      - ml-models:/models
+    networks:
+      - solar-net
+
   frontend:
     build:
       context: ./frontend
@@ -91,6 +125,8 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      TZ: Europe/Copenhagen
     ports:
       - "127.0.0.1:${SOLAR_FRONTEND_HOST_PORT:-13000}:3000"
     networks:
@@ -102,3 +138,4 @@ networks:
 
 volumes:
   influxdb-data:
+  ml-models:
