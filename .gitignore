@@ -2,6 +2,17 @@ server/.env
 edge/.env
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.DS_Store
+.vscode/
+.idea/
+.venv/
+venv/
+env/
+*.log
+solar_backup.csv
+edge/solar_backup.csv
 server/mosquitto/data/*
 !server/mosquitto/data/.gitkeep
 server/mosquitto/log/*

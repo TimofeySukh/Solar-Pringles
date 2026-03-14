@@ -116,3 +116,5 @@ This project currently follows an internal, documentation-driven workflow. Befor
 ## License
 
 License terms have not been defined yet. Do not assume open-source usage rights until a license is added.
+
+Live site: https://solar.onewordtext.tech

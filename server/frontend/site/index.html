@@ -108,6 +108,39 @@
         margin: 12px 0 0;
       }
 
+      .action-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .nav-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 0 18px;
+        border-radius: 999px;
+        border: 1px solid rgba(88, 255, 169, 0.28);
+        color: var(--text);
+        text-decoration: none;
+        background:
+          linear-gradient(180deg, rgba(88, 255, 169, 0.16), rgba(88, 255, 169, 0.06)),
+          rgba(6, 12, 18, 0.92);
+        box-shadow: 0 0 30px rgba(88, 255, 169, 0.08);
+        transition:
+          transform 160ms ease,
+          border-color 160ms ease,
+          box-shadow 160ms ease;
+      }
+
+      .nav-button:hover {
+        transform: translateY(-1px);
+        border-color: rgba(107, 216, 255, 0.42);
+        box-shadow: 0 0 32px rgba(107, 216, 255, 0.12);
+      }
+
       .status-cluster {
         display: grid;
         gap: 10px;
@@ -363,6 +396,9 @@
               Copenhagen-time telemetry, live signal quality, AI drift, and
               operational stats in a single command-center layout.
             </p>
+            <div class="action-row">
+              <a class="nav-button" href="/solar-farm.html">Our solarpanel farm</a>
+            </div>
           </div>
 
           <div class="status-cluster">
