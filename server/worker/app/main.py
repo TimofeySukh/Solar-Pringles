@@ -97,6 +97,10 @@ class InfluxWriter:
         if smoothed_voltage is not None:
             point.field("smoothed_voltage", float(smoothed_voltage))
 
+        uptime_seconds = payload.get("uptime_seconds")
+        if uptime_seconds is not None:
+            point.field("uptime_seconds", int(uptime_seconds))
+
         self._write_api.write(
             bucket=self.settings.influxdb_bucket,
             org=self.settings.influxdb_org,

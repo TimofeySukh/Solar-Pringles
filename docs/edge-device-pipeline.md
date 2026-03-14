@@ -72,6 +72,7 @@ Recommended payload fields:
 - `raw_voltage`
 - `smoothed_voltage`
 - `sensor_id`
+- `uptime_seconds`
 
 MQTT behavior requirements:
 
@@ -124,3 +125,4 @@ Behavior:
 - `raw_voltage`: direct ADC-derived voltage before smoothing
 - `smoothed_voltage`: moving average used for display and simple heuristics
 - `timestamp`: UTC ISO 8601 timestamp generated at sample time
+- `uptime_seconds`: Raspberry Pi uptime reported from `/proc/uptime` for dashboard operations telemetry

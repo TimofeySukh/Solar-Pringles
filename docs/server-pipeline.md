@@ -110,6 +110,7 @@ Initial fields:
 
 - `raw_voltage`
 - `smoothed_voltage` when present
+- `uptime_seconds` when present
 
 The timestamp comes from the payload when available and falls back to current UTC when missing or invalid.
 
@@ -196,6 +197,7 @@ The current scaffold now includes:
 - `GET /api/history`
 - `GET /api/live`
 - `GET /api/insights`
+- `GET /api/analytics`
 - `GET /api/status`
 - `GET /healthz`
 
@@ -204,6 +206,8 @@ The current scaffold now includes:
 `/api/history` returns aggregated day data from InfluxDB with a configurable interval in minutes.
 
 `/api/insights` serves the latest ML snapshot written by `ml_engine`.
+
+`/api/analytics` returns last-hour percentiles, SNR, Raspberry Pi uptime, a 60-second raw-voltage window, delta-per-second points, and recent AI residual history.
 
 ### Timezone Handling
 
@@ -229,15 +233,18 @@ Requirements:
 - live updates
 - status badge driven by heuristics for now
 
-### Implemented MVP Frontend
+### Implemented Command-Center Frontend
 
 The current frontend is intentionally kept in a single `index.html` file for simple deployment.
 
 It includes:
 
 - same-origin API access through Nginx proxying to the backend container
-- a large real-time Chart.js line chart
-- a current voltage panel
+- a daily voltage area chart with smoothed and raw overlays
+- a 60-second raw-voltage oscilloscope for volatility tracking
+- a delta-per-second chart for shadow and cloud-edge detection
+- an AI residuals chart fed from recent model snapshots
+- current voltage, percentile, SNR, uptime, and confidence cards
 - a live connection state indicator
 - a heuristic condition badge based on voltage thresholds
 - an AI Insights panel for predicted local time, sunset ETA, sunrise ETA, and confidence level

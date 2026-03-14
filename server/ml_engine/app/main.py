@@ -249,6 +249,10 @@ from(bucket: "{self.settings.influxdb_bucket}")
         elif "Medium" in available_confidences:
             overall_confidence = "Medium"
 
+        residual_minutes = None
+        if ai_time_estimate is not None:
+            residual_minutes = round(ai_time_estimate - float(latest["minute_of_day"]), 2)
+
         return {
             "timezone": self.settings.timezone_name,
             "sensor_id": self.settings.sensor_id,
@@ -281,6 +285,7 @@ from(bucket: "{self.settings.influxdb_bucket}")
                 "mae_minutes": sunrise_model.get("mae_minutes"),
                 "r2_score": sunrise_model.get("r2_score"),
             },
+            "residual_minutes": residual_minutes,
             "confidence_level": overall_confidence,
         }
 
@@ -289,6 +294,16 @@ from(bucket: "{self.settings.influxdb_bucket}")
         models_dir.mkdir(parents=True, exist_ok=True)
         latest_path = models_dir / "latest.json"
         latest_path.write_text(json.dumps(insights, indent=2), encoding="utf-8")
+
+        history_path = models_dir / "history.jsonl"
+        history_entry = {
+            "trained_at_utc": insights["trained_at_utc"],
+            "trained_at_local": insights["trained_at_local"],
+            "residual_minutes": insights.get("residual_minutes"),
+            "confidence_level": insights.get("confidence_level"),
+        }
+        with history_path.open("a", encoding="utf-8") as history_file:
+            history_file.write(json.dumps(history_entry) + "\n")
 
     def train_once(self) -> None:
         LOGGER.info("Starting online training cycle")

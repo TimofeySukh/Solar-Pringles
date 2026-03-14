@@ -31,6 +31,15 @@ def utc_now_iso() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
+def system_uptime_seconds() -> int | None:
+    try:
+        uptime_text = Path("/proc/uptime").read_text(encoding="utf-8").split()[0]
+        return int(float(uptime_text))
+    except Exception as exc:
+        LOGGER.warning("Failed to read system uptime: %s", exc)
+        return None
+
+
 @dataclass(slots=True)
 class Settings:
     sensor_id: str = os.getenv("SOLAR_SENSOR_ID", "pringles_1")
@@ -199,12 +208,16 @@ class SolarNode:
         self.backup_writer = BackupWriter(settings.backup_path)
 
     def _build_payload(self, raw_voltage: float, smoothed_voltage: float) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "sensor_id": self.settings.sensor_id,
             "timestamp": utc_now_iso(),
             "raw_voltage": round(raw_voltage, 6),
             "smoothed_voltage": round(smoothed_voltage, 6),
         }
+        uptime_seconds = system_uptime_seconds()
+        if uptime_seconds is not None:
+            payload["uptime_seconds"] = uptime_seconds
+        return payload
 
     def stop(self, *_args) -> None:
         LOGGER.info("Stop requested")

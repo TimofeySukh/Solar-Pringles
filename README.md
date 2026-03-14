@@ -1,17 +1,18 @@
 # Sollar Panel
 
-Sollar Panel is a documentation-first blueprint for an end-to-end IoT and machine learning pipeline that starts on a Raspberry Pi Zero 2 W and ends with a containerized backend, live web dashboard, and dataset export flow for model training.
+Sollar Panel is an end-to-end IoT and machine learning pipeline that starts on a Raspberry Pi Zero 2 W and ends with a containerized backend, live command-center dashboard, and online-training loop for solar telemetry analysis.
 
-The current repository state is an architecture scaffold. It captures the edge-device requirements, server-side design, deployment constraints, and contributor rules before implementation starts.
+The current repository state is a working MVP: the edge node samples ADS1115 voltage data, the server stores telemetry in InfluxDB, the ML engine trains lightweight models every 15 minutes, and the frontend renders a real-time analytical deck.
 
 ## Features
 
-- Resilient Raspberry Pi edge acquisition design for ADS1115 over I2C.
+- Resilient Raspberry Pi edge acquisition for ADS1115 over I2C.
 - MQTT-based ingestion with reconnect-safe behavior for unstable Wi-Fi and flaky sensor wiring.
 - Time-series storage plan with `InfluxDB` as the default recommendation for a low-memory server.
 - Online training service for lightweight solar models every 15 minutes.
 - AI Insights for time-of-day, sunset ETA, sunrise ETA, and confidence scoring.
-- Lightweight API and live dashboard plan with strict Docker isolation.
+- Command-center dashboard with live volatility, delta, residuals, percentiles, SNR, and uptime.
+- Lightweight FastAPI surface for history, live telemetry, AI insights, and analytics summaries.
 - Cloudflare Tunnel routing guidance that keeps the existing public site intact.
 
 ## Documentation
@@ -24,7 +25,7 @@ The current repository state is an architecture scaffold. It captures the edge-d
 
 ## Quickstart
 
-The server scaffold is now ready for a first review pass. Copy the environment template and start the containers:
+Copy the environment template and start the server stack:
 
 ```bash
 cd /home/tim/projects/sollar_panel
@@ -40,7 +41,7 @@ Default published ports:
 - FastAPI scaffold on `127.0.0.1:18000`
 - Frontend scaffold on `127.0.0.1:13000`
 
-The repository now also includes an edge node implementation:
+The repository also includes the Raspberry Pi edge node:
 
 ```bash
 cp edge/.env.example edge/.env
@@ -50,14 +51,14 @@ python3 edge/solar_node.py
 
 ## Configuration
 
-The planned runtime stack is:
+The runtime stack is:
 
 - `mosquitto` for MQTT
 - `influxdb` for time-series storage
 - Python workers for ingestion and daily export
 - `ml_engine` for online model training and model registry refresh
-- `FastAPI` for history and live data delivery
-- A separate frontend container for charts and status UI
+- `FastAPI` for history, analytics, and live data delivery
+- A separate frontend container for the command-center UI
 
 The server design assumes a strict isolation boundary from the already-running public website and a constrained host with about `3 GB` of free RAM.
 
@@ -79,14 +80,22 @@ Edge layout:
 - `edge/requirements.txt`
 - `edge/systemd/sollar-panel-edge.service`
 
-The MVP backend now exposes:
+The backend now exposes:
 
 - `GET /api/history` for aggregated day data
 - `GET /api/live` as an SSE stream for real-time telemetry
 - `GET /api/insights` for online-training output and confidence scores
+- `GET /api/analytics` for last-hour percentiles, SNR, uptime, live volatility, delta, and residual series
 - `GET /api/status` for a compact runtime summary
 
-The frontend is a single-file dashboard that proxies API traffic through Nginx and renders a real-time Chart.js line chart, a heuristic status widget, and an AI Insights panel.
+The frontend is a single-file dashboard that proxies API traffic through Nginx and renders:
+
+- a daily voltage area chart
+- a 60-second live volatility oscilloscope
+- a delta-per-second chart
+- an AI residuals chart
+- percentile, SNR, uptime, and confidence cards
+- an AI Insights panel for predicted local time, sunset ETA, and sunrise ETA
 
 ## Development
 

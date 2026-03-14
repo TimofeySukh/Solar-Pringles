@@ -3,111 +3,126 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Sollar Panel Live Dashboard</title>
+    <title>Sollar Panel Command Center</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <style>
+      @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap");
+
       :root {
         color-scheme: dark;
-        --bg: #030507;
-        --bg-soft: #071017;
-        --card: rgba(5, 16, 19, 0.82);
-        --line: rgba(73, 255, 184, 0.18);
-        --text: #d9ffe8;
-        --muted: #7fb8a0;
-        --accent: #44ffa1;
-        --accent-soft: rgba(68, 255, 161, 0.18);
-        --cyan: #57e2ff;
-        --amber: #ffbf47;
-        --danger: #ff6c6c;
-        --shadow: rgba(0, 255, 149, 0.08);
+        --bg: #05070a;
+        --bg-soft: #0b1118;
+        --panel: rgba(8, 16, 24, 0.9);
+        --panel-strong: rgba(6, 12, 18, 0.96);
+        --line: rgba(88, 255, 169, 0.16);
+        --grid: rgba(88, 255, 169, 0.08);
+        --text: #ebfff5;
+        --muted: #86a99b;
+        --voltage: #58ffa9;
+        --anomaly: #ff9e45;
+        --prediction: #6bd8ff;
+        --danger: #ff6d7c;
+        --shadow: rgba(14, 255, 177, 0.1);
       }
 
       * {
         box-sizing: border-box;
       }
 
+      html,
       body {
         margin: 0;
-        min-height: 100vh;
-        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-        color: var(--text);
-        background:
-          radial-gradient(circle at top right, rgba(68, 255, 161, 0.16), transparent 24%),
-          radial-gradient(circle at left 20%, rgba(87, 226, 255, 0.12), transparent 18%),
-          repeating-linear-gradient(
-            180deg,
-            rgba(68, 255, 161, 0.03) 0,
-            rgba(68, 255, 161, 0.03) 1px,
-            transparent 1px,
-            transparent 48px
-          ),
-          linear-gradient(180deg, var(--bg) 0%, #020304 100%);
+        min-height: 100%;
       }
 
-      main {
-        width: min(1200px, calc(100% - 24px));
+      body {
+        font-family: "JetBrains Mono", "Roboto Mono", monospace;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top right, rgba(107, 216, 255, 0.14), transparent 22%),
+          radial-gradient(circle at left 18%, rgba(88, 255, 169, 0.12), transparent 18%),
+          linear-gradient(180deg, rgba(255, 158, 69, 0.04), transparent 30%),
+          repeating-linear-gradient(
+            180deg,
+            rgba(88, 255, 169, 0.03) 0,
+            rgba(88, 255, 169, 0.03) 1px,
+            transparent 1px,
+            transparent 44px
+          ),
+          var(--bg);
+      }
+
+      .shell {
+        width: min(1600px, calc(100% - 24px));
         margin: 0 auto;
-        padding: 28px 0 48px;
+        padding: 20px 0 32px;
       }
 
       .frame {
         border: 1px solid var(--line);
         border-radius: 28px;
         background:
-          linear-gradient(180deg, rgba(5, 16, 19, 0.96), rgba(4, 11, 14, 0.88)),
-          var(--card);
+          linear-gradient(180deg, rgba(7, 14, 22, 0.96), rgba(5, 10, 14, 0.94)),
+          var(--panel);
         box-shadow:
-          0 30px 80px rgba(0, 0, 0, 0.5),
-          inset 0 0 0 1px rgba(87, 226, 255, 0.05);
+          0 28px 90px rgba(0, 0, 0, 0.52),
+          inset 0 0 0 1px rgba(255, 255, 255, 0.02);
         overflow: hidden;
       }
 
-      .header {
+      .topbar {
         display: flex;
         flex-wrap: wrap;
         justify-content: space-between;
-        gap: 16px;
-        padding: 24px 24px 0;
+        gap: 18px;
+        align-items: flex-start;
+        padding: 24px 24px 14px;
+        border-bottom: 1px solid rgba(88, 255, 169, 0.08);
       }
 
       .eyebrow {
         margin: 0 0 10px;
-        color: var(--accent);
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
+        color: var(--voltage);
         font-size: 0.76rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
       }
 
       h1 {
         margin: 0;
-        font-size: clamp(2.4rem, 5vw, 4.8rem);
-        line-height: 1.05;
-        letter-spacing: -0.04em;
+        font-size: clamp(2.1rem, 4vw, 3.8rem);
+        line-height: 1;
+        letter-spacing: -0.05em;
       }
 
       p {
         color: var(--muted);
-        line-height: 1.65;
+        line-height: 1.7;
       }
 
-      .overview {
+      .headline {
+        max-width: 760px;
+      }
+
+      .headline p {
+        margin: 12px 0 0;
+      }
+
+      .status-cluster {
         display: grid;
-        gap: 14px;
-        width: min(420px, 100%);
-        align-content: start;
+        gap: 10px;
+        min-width: min(380px, 100%);
       }
 
-      .status-chip {
+      .status-pill {
         display: inline-flex;
         align-items: center;
         gap: 10px;
-        padding: 10px 14px;
+        padding: 12px 14px;
         border-radius: 999px;
-        border: 1px solid rgba(68, 255, 161, 0.25);
-        background: rgba(68, 255, 161, 0.08);
-        color: var(--text);
-        font-weight: 700;
-        letter-spacing: 0.02em;
+        border: 1px solid rgba(88, 255, 169, 0.24);
+        background: rgba(88, 255, 169, 0.08);
+        width: fit-content;
       }
 
       .status-dot {
@@ -118,88 +133,16 @@
         box-shadow: 0 0 18px currentColor;
       }
 
-      .dashboard {
-        display: grid;
-        gap: 18px;
-        grid-template-columns: minmax(0, 1.6fr) minmax(290px, 0.8fr);
-        padding: 24px;
-      }
-
-      .card {
-        padding: 20px;
-        border-radius: 22px;
-        border: 1px solid var(--line);
-        background:
-          linear-gradient(180deg, rgba(6, 20, 24, 0.9), rgba(2, 9, 12, 0.92));
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.015);
-      }
-
-      .chart-card {
-        min-height: 520px;
-      }
-
-      .chart-header,
-      .stats-header {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        align-items: flex-start;
-        margin-bottom: 18px;
-      }
-
-      .chart-wrap {
-        position: relative;
-        height: min(58vh, 520px);
-      }
-
-      .stats {
-        display: grid;
-        gap: 14px;
-        align-content: start;
-      }
-
-      .insights-grid {
-        display: grid;
-        gap: 12px;
-      }
-
-      .metric {
-        padding: 16px 18px;
-        border-radius: 18px;
-        border: 1px solid rgba(68, 255, 161, 0.14);
-        background: rgba(6, 17, 20, 0.75);
-      }
-
-      .metric-label {
-        color: var(--muted);
-        font-size: 0.82rem;
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-      }
-
-      .metric-value {
-        margin-top: 10px;
-        font-size: clamp(1.4rem, 4vw, 2.7rem);
-        font-weight: 700;
-        letter-spacing: -0.04em;
-      }
-
-      .metric-subtext {
-        margin-top: 8px;
-        color: var(--muted);
-        font-size: 0.95rem;
-      }
-
       .status-sunny {
-        color: var(--accent);
+        color: var(--voltage);
       }
 
       .status-cloudy {
-        color: var(--cyan);
+        color: var(--prediction);
       }
 
       .status-twilight {
-        color: var(--amber);
+        color: var(--anomaly);
       }
 
       .status-shade,
@@ -207,239 +150,502 @@
         color: var(--danger);
       }
 
-      .terminal-strip {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        padding: 14px 24px 18px;
-        border-top: 1px solid rgba(68, 255, 161, 0.08);
-        color: var(--muted);
-        font-size: 0.92rem;
+      .banner-row {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        padding: 18px 24px 10px;
       }
 
-      .terminal-led {
+      .banner-card {
+        padding: 16px 18px;
+        border-radius: 20px;
+        border: 1px solid rgba(88, 255, 169, 0.12);
+        background:
+          linear-gradient(180deg, rgba(9, 18, 27, 0.92), rgba(5, 11, 16, 0.94));
+        min-height: 120px;
+      }
+
+      .card-label {
+        color: var(--muted);
+        font-size: 0.78rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .card-value {
+        margin-top: 12px;
+        font-size: clamp(1.2rem, 2.6vw, 2.6rem);
+        font-weight: 700;
+        letter-spacing: -0.05em;
+      }
+
+      .card-meta {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 0.85rem;
+        line-height: 1.55;
+      }
+
+      .command-grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: minmax(0, 1.45fr) minmax(0, 1.05fr) minmax(320px, 0.8fr);
+        padding: 10px 24px 24px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background:
+          linear-gradient(180deg, rgba(8, 16, 24, 0.94), rgba(4, 9, 14, 0.96));
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.018);
+        padding: 18px;
+        min-width: 0;
+      }
+
+      .panel.main-trend {
+        grid-column: span 2;
+        min-height: 420px;
+      }
+
+      .panel.span-2 {
+        grid-column: span 2;
+      }
+
+      .panel-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: flex-start;
+        margin-bottom: 16px;
+      }
+
+      .panel-title {
+        margin: 0;
+        font-size: 1rem;
+        letter-spacing: 0.02em;
+      }
+
+      .panel-subtitle {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .panel-value {
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .chart-box {
+        position: relative;
+        height: 100%;
+        min-height: 250px;
+      }
+
+      .grid-two {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .mini-tile {
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid rgba(88, 255, 169, 0.1);
+        background: rgba(5, 13, 18, 0.78);
+      }
+
+      .mini-value {
+        margin-top: 8px;
+        font-size: 1.5rem;
+        font-weight: 700;
+      }
+
+      .prediction-tone {
+        color: var(--prediction);
+      }
+
+      .anomaly-tone {
+        color: var(--anomaly);
+      }
+
+      .voltage-tone {
+        color: var(--voltage);
+      }
+
+      .danger-tone {
+        color: var(--danger);
+      }
+
+      .footer-strip {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 24px 20px;
+        border-top: 1px solid rgba(88, 255, 169, 0.08);
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      .footer-led {
         width: 9px;
         height: 9px;
         border-radius: 50%;
-        background: var(--accent);
-        box-shadow: 0 0 16px rgba(68, 255, 161, 0.5);
+        background: var(--voltage);
+        box-shadow: 0 0 18px rgba(88, 255, 169, 0.55);
       }
 
       code {
-        color: var(--cyan);
+        color: var(--prediction);
       }
 
-      .muted {
-        color: var(--muted);
+      @media (max-width: 1280px) {
+        .banner-row {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .command-grid {
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        }
+
+        .panel.main-trend,
+        .panel.span-2 {
+          grid-column: span 2;
+        }
       }
 
-      @media (max-width: 920px) {
-        .dashboard {
+      @media (max-width: 860px) {
+        .shell {
+          width: min(100%, calc(100% - 16px));
+        }
+
+        .banner-row,
+        .command-grid {
           grid-template-columns: 1fr;
         }
 
-        .chart-card {
-          min-height: 420px;
-        }
-      }
-
-      @media (max-width: 640px) {
-        main {
-          width: min(100%, calc(100% - 16px));
-          padding: 16px 0 32px;
+        .panel.main-trend,
+        .panel.span-2 {
+          grid-column: span 1;
         }
 
-        .header,
-        .dashboard,
-        .terminal-strip {
-          padding-left: 16px;
-          padding-right: 16px;
+        .grid-two {
+          grid-template-columns: 1fr;
         }
       }
     </style>
   </head>
   <body>
-    <main>
+    <div class="shell">
       <section class="frame">
-        <header class="header">
-          <div>
-            <p class="eyebrow">Live Solar Telemetry</p>
-            <h1>Sollar Panel control surface</h1>
+        <header class="topbar">
+          <div class="headline">
+            <p class="eyebrow">Solar Command Center</p>
+            <h1>Pringles Node analytical deck</h1>
             <p>
-              Real-time voltage stream from the edge sensor with same-origin API
-              proxying through the frontend container. Status labels are
-              threshold-based heuristics and will be replaced by a model later.
+              Copenhagen-time telemetry, live signal quality, AI drift, and
+              operational stats in a single command-center layout.
             </p>
           </div>
-          <div class="overview">
-            <div class="status-chip" id="statusChip">
+
+          <div class="status-cluster">
+            <div class="status-pill status-no-data" id="statusPill">
               <span class="status-dot"></span>
               <span id="statusLabel">No data</span>
             </div>
-            <p class="muted">
-              Live updates arrive over <code>/api/live</code>. The daily trend
-              is preloaded from <code>/api/history</code>.
-            </p>
+            <div class="card-meta" id="lastUpdate">Waiting for the first packet.</div>
+            <div class="card-meta" id="connectionState">Connecting to the event stream.</div>
           </div>
         </header>
 
-        <section class="dashboard">
-          <article class="card chart-card">
-            <div class="chart-header">
+        <section class="banner-row">
+          <article class="banner-card">
+            <div class="card-label">Current Voltage</div>
+            <div class="card-value voltage-tone" id="currentVoltage">--.-- V</div>
+            <div class="card-meta" id="currentVoltageMeta">Awaiting the latest point.</div>
+          </article>
+
+          <article class="banner-card">
+            <div class="card-label">P50 / P95 / P99</div>
+            <div class="card-value" id="percentilesCard">-- / -- / --</div>
+            <div class="card-meta">Last-hour effective voltage percentiles.</div>
+          </article>
+
+          <article class="banner-card">
+            <div class="card-label">Signal to Noise Ratio</div>
+            <div class="card-value prediction-tone" id="snrValue">-- dB</div>
+            <div class="card-meta">Computed from raw versus smoothed signal power.</div>
+          </article>
+
+          <article class="banner-card">
+            <div class="card-label">Raspberry Pi Uptime</div>
+            <div class="card-value" id="uptimeValue">Unavailable</div>
+            <div class="card-meta">Reported directly by the edge node payload.</div>
+          </article>
+
+          <article class="banner-card">
+            <div class="card-label">AI Confidence</div>
+            <div class="card-value prediction-tone" id="confidenceValue">Unavailable</div>
+            <div class="card-meta" id="confidenceMeta">Waiting for the latest model snapshot.</div>
+          </article>
+        </section>
+
+        <section class="command-grid">
+          <article class="panel main-trend">
+            <div class="panel-header">
               <div>
-                <p class="eyebrow">Day Trend</p>
-                <strong>Smoothed voltage with raw telemetry overlay</strong>
+                <p class="eyebrow">Main Trend</p>
+                <h2 class="panel-title">Daily Voltage Envelope</h2>
+                <p class="panel-subtitle">Area chart of today’s smoothed voltage with raw overlay.</p>
               </div>
-              <div class="muted" id="connectionState">Connecting...</div>
+              <div class="panel-value" id="dayRangeMeta">Loading day history...</div>
             </div>
-            <div class="chart-wrap">
-              <canvas id="voltageChart"></canvas>
+            <div class="chart-box">
+              <canvas id="trendChart"></canvas>
             </div>
           </article>
 
-          <aside class="stats">
-            <section class="card">
-              <div class="stats-header">
-                <div>
-                  <p class="eyebrow">Current Status</p>
-                  <strong id="currentStatusTitle">Awaiting telemetry</strong>
-                </div>
-                <div class="muted" id="lastUpdate">No samples yet</div>
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">AI Insights</p>
+                <h2 class="panel-title">Model Outlook</h2>
+                <p class="panel-subtitle">Live regression outputs from the online training engine.</p>
               </div>
-              <div class="metric">
-                <div class="metric-label">Current Voltage</div>
-                <div class="metric-value" id="currentVoltage">--.-- V</div>
-                <div class="metric-subtext" id="currentVoltageMeta">
-                  Waiting for the latest point from InfluxDB.
-                </div>
+            </div>
+            <div class="grid-two">
+              <div class="mini-tile">
+                <div class="card-label">AI Time Estimate</div>
+                <div class="mini-value prediction-tone" id="aiTimeEstimate">--:--</div>
+                <div class="card-meta" id="aiTimeMeta">Waiting for training output.</div>
               </div>
-            </section>
+              <div class="mini-tile">
+                <div class="card-label">Estimated Sunset</div>
+                <div class="mini-value anomaly-tone" id="sunsetEstimate">Unavailable</div>
+                <div class="card-meta" id="sunsetMeta">Sunset ETA is warming up.</div>
+              </div>
+              <div class="mini-tile">
+                <div class="card-label">Estimated Sunrise</div>
+                <div class="mini-value prediction-tone" id="sunriseEstimate">Unavailable</div>
+                <div class="card-meta" id="sunriseMeta">Sunrise ETA is warming up.</div>
+              </div>
+              <div class="mini-tile">
+                <div class="card-label">Residual Drift</div>
+                <div class="mini-value danger-tone" id="residualNow">-- min</div>
+                <div class="card-meta" id="residualMeta">Difference between system time and AI time estimate.</div>
+              </div>
+            </div>
+          </article>
 
-            <section class="card">
-              <p class="eyebrow">Signal Summary</p>
-              <div class="metric">
-                <div class="metric-label">Samples On Chart</div>
-                <div class="metric-value" id="sampleCount">0</div>
-                <div class="metric-subtext">Aggregated day history plus live incoming points.</div>
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Live Volatility</p>
+                <h2 class="panel-title">60-Second Oscilloscope</h2>
+                <p class="panel-subtitle">Raw voltage stream for immediate shadow and flicker detection.</p>
               </div>
-            </section>
+              <div class="panel-value" id="liveWindowMeta">Last 60 seconds</div>
+            </div>
+            <div class="chart-box">
+              <canvas id="volatilityChart"></canvas>
+            </div>
+          </article>
 
-            <section class="card">
-              <p class="eyebrow">Stream Health</p>
-              <div class="metric">
-                <div class="metric-label">Transport</div>
-                <div class="metric-value" id="streamTransport">SSE</div>
-                <div class="metric-subtext" id="streamHint">
-                  Establishing connection to the backend event stream.
-                </div>
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Rate of Change</p>
+                <h2 class="panel-title">Delta V / Second</h2>
+                <p class="panel-subtitle">Fast slope view for catching cloud edges and abrupt dips.</p>
               </div>
-            </section>
+              <div class="panel-value" id="deltaMeta">Derivative over the live window</div>
+            </div>
+            <div class="chart-box">
+              <canvas id="deltaChart"></canvas>
+            </div>
+          </article>
 
-            <section class="card">
-              <p class="eyebrow">AI Insights</p>
-              <div class="insights-grid">
-                <div class="metric">
-                  <div class="metric-label">AI Time Estimate</div>
-                  <div class="metric-value" id="aiTimeEstimate">--:--</div>
-                  <div class="metric-subtext" id="aiTimeMeta">Waiting for ML engine output.</div>
-                </div>
-                <div class="metric">
-                  <div class="metric-label">Estimated Sunset</div>
-                  <div class="metric-value" id="aiSunsetEstimate">Unavailable</div>
-                  <div class="metric-subtext" id="aiSunsetMeta">No trained sunset model yet.</div>
-                </div>
-                <div class="metric">
-                  <div class="metric-label">Estimated Sunrise</div>
-                  <div class="metric-value" id="aiSunriseEstimate">Unavailable</div>
-                  <div class="metric-subtext" id="aiSunriseMeta">No trained sunrise model yet.</div>
-                </div>
-                <div class="metric">
-                  <div class="metric-label">Confidence Level</div>
-                  <div class="metric-value" id="aiConfidenceLevel">Unavailable</div>
-                  <div class="metric-subtext" id="aiConfidenceMeta">Model error metrics will appear here.</div>
-                </div>
+          <article class="panel span-2">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">AI Prediction Error</p>
+                <h2 class="panel-title">Residuals Timeline</h2>
+                <p class="panel-subtitle">Signed drift between actual local time and the AI time estimate.</p>
               </div>
-            </section>
-          </aside>
+              <div class="panel-value" id="residualSeriesMeta">Recent training cycles</div>
+            </div>
+            <div class="chart-box">
+              <canvas id="residualChart"></canvas>
+            </div>
+          </article>
         </section>
 
-        <footer class="terminal-strip">
-          <span class="terminal-led"></span>
-          <span id="footerNote">Monitoring sensor output in real time.</span>
+        <footer class="footer-strip">
+          <span class="footer-led"></span>
+          <span id="footerNote">Command Center synchronized to Europe/Copenhagen without rewriting UTC history.</span>
         </footer>
       </section>
-    </main>
+    </div>
 
     <script>
-      const MAX_POINTS = 720;
+      const dashboardTimezone = "Europe/Copenhagen";
       const historyEndpoint = "/api/history";
       const liveEndpoint = "/api/live";
       const insightsEndpoint = "/api/insights";
-      const dashboardTimezone = "Europe/Copenhagen";
+      const analyticsEndpoint = "/api/analytics";
+      const analyticsRefreshMs = 15_000;
+      const insightsRefreshMs = 60_000;
+      const historyRefreshMs = 120_000;
 
-      const dom = {
-        currentVoltage: document.getElementById("currentVoltage"),
-        currentVoltageMeta: document.getElementById("currentVoltageMeta"),
-        currentStatusTitle: document.getElementById("currentStatusTitle"),
-        statusLabel: document.getElementById("statusLabel"),
-        statusChip: document.getElementById("statusChip"),
-        lastUpdate: document.getElementById("lastUpdate"),
-        sampleCount: document.getElementById("sampleCount"),
-        streamTransport: document.getElementById("streamTransport"),
-        streamHint: document.getElementById("streamHint"),
-        connectionState: document.getElementById("connectionState"),
-        footerNote: document.getElementById("footerNote"),
-        aiTimeEstimate: document.getElementById("aiTimeEstimate"),
-        aiTimeMeta: document.getElementById("aiTimeMeta"),
-        aiSunsetEstimate: document.getElementById("aiSunsetEstimate"),
-        aiSunsetMeta: document.getElementById("aiSunsetMeta"),
-        aiSunriseEstimate: document.getElementById("aiSunriseEstimate"),
-        aiSunriseMeta: document.getElementById("aiSunriseMeta"),
-        aiConfidenceLevel: document.getElementById("aiConfidenceLevel"),
-        aiConfidenceMeta: document.getElementById("aiConfidenceMeta"),
+      const state = {
+        lastLiveTimestamp: null,
+        livePoints: [],
       };
 
-      const chartContext = document.getElementById("voltageChart").getContext("2d");
-      const chartGradient = chartContext.createLinearGradient(0, 0, 0, 420);
-      chartGradient.addColorStop(0, "rgba(68, 255, 161, 0.42)");
-      chartGradient.addColorStop(1, "rgba(68, 255, 161, 0.02)");
+      const dom = {
+        statusPill: document.getElementById("statusPill"),
+        statusLabel: document.getElementById("statusLabel"),
+        lastUpdate: document.getElementById("lastUpdate"),
+        connectionState: document.getElementById("connectionState"),
+        currentVoltage: document.getElementById("currentVoltage"),
+        currentVoltageMeta: document.getElementById("currentVoltageMeta"),
+        percentilesCard: document.getElementById("percentilesCard"),
+        snrValue: document.getElementById("snrValue"),
+        uptimeValue: document.getElementById("uptimeValue"),
+        confidenceValue: document.getElementById("confidenceValue"),
+        confidenceMeta: document.getElementById("confidenceMeta"),
+        dayRangeMeta: document.getElementById("dayRangeMeta"),
+        liveWindowMeta: document.getElementById("liveWindowMeta"),
+        deltaMeta: document.getElementById("deltaMeta"),
+        residualSeriesMeta: document.getElementById("residualSeriesMeta"),
+        aiTimeEstimate: document.getElementById("aiTimeEstimate"),
+        aiTimeMeta: document.getElementById("aiTimeMeta"),
+        sunsetEstimate: document.getElementById("sunsetEstimate"),
+        sunsetMeta: document.getElementById("sunsetMeta"),
+        sunriseEstimate: document.getElementById("sunriseEstimate"),
+        sunriseMeta: document.getElementById("sunriseMeta"),
+        residualNow: document.getElementById("residualNow"),
+        residualMeta: document.getElementById("residualMeta"),
+        footerNote: document.getElementById("footerNote"),
+      };
 
-      const rawGradient = chartContext.createLinearGradient(0, 0, 0, 420);
-      rawGradient.addColorStop(0, "rgba(87, 226, 255, 0.28)");
-      rawGradient.addColorStop(1, "rgba(87, 226, 255, 0.01)");
+      function createGradient(context, topColor, bottomColor) {
+        const gradient = context.createLinearGradient(0, 0, 0, 320);
+        gradient.addColorStop(0, topColor);
+        gradient.addColorStop(1, bottomColor);
+        return gradient;
+      }
 
-      const voltageChart = new Chart(chartContext, {
+      function buildChart(canvasId, configFactory) {
+        const context = document.getElementById(canvasId).getContext("2d");
+        return new Chart(context, configFactory(context));
+      }
+
+      const trendChart = buildChart("trendChart", (context) => ({
         type: "line",
         data: {
           labels: [],
           datasets: [
             {
-              label: "Smoothed voltage",
+              label: "Smoothed Voltage",
               data: [],
-              timestamps: [],
-              borderColor: "#44ffa1",
-              backgroundColor: chartGradient,
+              borderColor: "#58ffa9",
+              backgroundColor: createGradient(context, "rgba(88, 255, 169, 0.42)", "rgba(88, 255, 169, 0.02)"),
               borderWidth: 2.4,
+              tension: 0.3,
               pointRadius: 0,
-              pointHoverRadius: 4,
-              tension: 0.28,
               fill: true,
             },
             {
-              label: "Raw voltage",
+              label: "Raw Voltage",
               data: [],
-              borderColor: "#57e2ff",
-              backgroundColor: rawGradient,
-              borderWidth: 1.2,
+              borderColor: "rgba(107, 216, 255, 0.95)",
+              borderWidth: 1.1,
+              tension: 0.2,
               pointRadius: 0,
-              pointHoverRadius: 3,
-              tension: 0.18,
               fill: false,
               borderDash: [5, 6],
             },
           ],
         },
-        options: {
+        options: baseChartOptions({
+          yLabelFormatter: (value) => `${Number(value).toFixed(2)} V`,
+        }),
+      }));
+
+      const volatilityChart = buildChart("volatilityChart", (context) => ({
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: "Raw Voltage",
+              data: [],
+              borderColor: "#58ffa9",
+              backgroundColor: createGradient(context, "rgba(88, 255, 169, 0.28)", "rgba(88, 255, 169, 0.01)"),
+              pointRadius: 0,
+              borderWidth: 1.8,
+              fill: true,
+              tension: 0.12,
+            },
+          ],
+        },
+        options: baseChartOptions({
+          yLabelFormatter: (value) => `${Number(value).toFixed(3)} V`,
+          maxTicksLimit: 8,
+        }),
+      }));
+
+      const deltaChart = buildChart("deltaChart", () => ({
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: "Delta V / s",
+              data: [],
+              borderColor: "#ff9e45",
+              pointRadius: 0,
+              borderWidth: 1.8,
+              fill: false,
+              tension: 0.1,
+            },
+          ],
+        },
+        options: baseChartOptions({
+          yLabelFormatter: (value) => `${Number(value).toFixed(4)} V/s`,
+          maxTicksLimit: 8,
+        }),
+      }));
+
+      const residualChart = buildChart("residualChart", (context) => ({
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: "Residual Minutes",
+              data: [],
+              borderColor: "#6bd8ff",
+              backgroundColor: createGradient(context, "rgba(107, 216, 255, 0.22)", "rgba(107, 216, 255, 0.02)"),
+              pointRadius: 2,
+              pointHoverRadius: 4,
+              borderWidth: 1.7,
+              fill: true,
+              tension: 0.16,
+            },
+          ],
+        },
+        options: baseChartOptions({
+          yLabelFormatter: (value) => `${Number(value).toFixed(1)} min`,
+          maxTicksLimit: 10,
+        }),
+      }));
+
+      function baseChartOptions({ yLabelFormatter, maxTicksLimit = 10 }) {
+        return {
           responsive: true,
           maintainAspectRatio: false,
           animation: false,
@@ -450,41 +656,41 @@
           plugins: {
             legend: {
               labels: {
-                color: "#d9ffe8",
+                color: "#ebfff5",
                 usePointStyle: true,
               },
             },
             tooltip: {
-              backgroundColor: "rgba(3, 10, 12, 0.94)",
-              borderColor: "rgba(68, 255, 161, 0.28)",
+              backgroundColor: "rgba(3, 9, 13, 0.94)",
+              borderColor: "rgba(88, 255, 169, 0.22)",
               borderWidth: 1,
-              titleColor: "#d9ffe8",
-              bodyColor: "#d9ffe8",
+              titleColor: "#ebfff5",
+              bodyColor: "#ebfff5",
               displayColors: true,
             },
           },
           scales: {
             x: {
               ticks: {
-                color: "#7fb8a0",
-                maxTicksLimit: 10,
+                color: "#86a99b",
+                maxTicksLimit,
               },
               grid: {
-                color: "rgba(68, 255, 161, 0.06)",
+                color: "rgba(88, 255, 169, 0.06)",
               },
             },
             y: {
               ticks: {
-                color: "#7fb8a0",
-                callback: (value) => `${Number(value).toFixed(2)} V`,
+                color: "#86a99b",
+                callback: yLabelFormatter,
               },
               grid: {
-                color: "rgba(68, 255, 161, 0.08)",
+                color: "rgba(88, 255, 169, 0.08)",
               },
             },
           },
-        },
-      });
+        };
+      }
 
       function formatClock(timestamp) {
         const date = new Date(timestamp);
@@ -508,16 +714,34 @@
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
-          year: "numeric",
           month: "short",
           day: "2-digit",
           timeZone: dashboardTimezone,
         });
       }
 
-      function formatVoltage(point) {
-        const value = point.smoothed_voltage ?? point.raw_voltage;
+      function formatVoltageValue(value) {
         return typeof value === "number" ? `${value.toFixed(3)} V` : "--.-- V";
+      }
+
+      function formatUptime(seconds) {
+        if (typeof seconds !== "number") {
+          return "Unavailable";
+        }
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        if (days > 0) {
+          return `${days}d ${hours}h ${minutes}m`;
+        }
+        if (hours > 0) {
+          return `${hours}h ${minutes}m`;
+        }
+        return `${minutes}m`;
+      }
+
+      function statusClass(status) {
+        return `status-${status.toLowerCase().replace(/\s+/g, "-")}`;
       }
 
       function classifyStatus(voltage) {
@@ -536,144 +760,160 @@
         return "Shade";
       }
 
-      function statusClass(status) {
-        return `status-${status.toLowerCase().replace(/\s+/g, "-")}`;
-      }
-
       function updateStatus(point, explicitStatus) {
         const effectiveVoltage = point ? point.smoothed_voltage ?? point.raw_voltage : null;
         const status = explicitStatus || classifyStatus(effectiveVoltage);
         dom.statusLabel.textContent = status;
-        dom.currentStatusTitle.textContent = status;
-        dom.currentVoltage.textContent = point ? formatVoltage(point) : "--.-- V";
+        dom.statusPill.className = `status-pill ${statusClass(status)}`;
+        dom.currentVoltage.textContent = point ? formatVoltageValue(effectiveVoltage) : "--.-- V";
         dom.currentVoltageMeta.textContent = point
           ? `Raw ${point.raw_voltage?.toFixed(3) ?? "--.--"} V, smoothed ${point.smoothed_voltage?.toFixed(3) ?? "--.--"} V`
           : "Waiting for the latest point from InfluxDB.";
-        dom.lastUpdate.textContent = point ? `Last sample ${formatClock(point.timestamp_local ?? point.timestamp)}` : "No samples yet";
-        dom.statusChip.className = `status-chip ${statusClass(status)}`;
-        dom.footerNote.textContent = point
-          ? `Live sensor update received at ${formatClock(point.timestamp_local ?? point.timestamp)} Copenhagen time.`
-          : "Monitoring sensor output in real time.";
+        dom.lastUpdate.textContent = point
+          ? `Last sample ${formatClock(point.timestamp_local ?? point.timestamp)} Copenhagen time`
+          : "Waiting for the first packet.";
       }
 
-      function syncSampleCount() {
-        dom.sampleCount.textContent = String(voltageChart.data.labels.length);
+      function updateTrendChart(points) {
+        trendChart.data.labels = points.map((point) => formatClock(point.timestamp_local ?? point.timestamp));
+        trendChart.data.datasets[0].data = points.map((point) => point.smoothed_voltage ?? point.raw_voltage ?? null);
+        trendChart.data.datasets[1].data = points.map((point) => point.raw_voltage ?? null);
+        trendChart.update("none");
       }
 
-      function appendPoint(point) {
-        if (!point || !point.timestamp) {
-          return;
-        }
-
-        const label = formatClock(point.timestamp_local ?? point.timestamp);
-        const timestamps = voltageChart.data.datasets[0].timestamps || [];
-        voltageChart.data.datasets[0].timestamps = timestamps;
-        const lastTimestamp = voltageChart.data.datasets[0].timestamps?.slice(-1)[0];
-
-        if (lastTimestamp === point.timestamp) {
-          const lastIndex = voltageChart.data.labels.length - 1;
-          voltageChart.data.labels[lastIndex] = label;
-          voltageChart.data.datasets[0].data[lastIndex] = point.smoothed_voltage ?? point.raw_voltage ?? null;
-          voltageChart.data.datasets[1].data[lastIndex] = point.raw_voltage ?? null;
-          voltageChart.data.datasets[0].timestamps[lastIndex] = point.timestamp;
-        } else {
-          voltageChart.data.labels.push(label);
-          voltageChart.data.datasets[0].data.push(point.smoothed_voltage ?? point.raw_voltage ?? null);
-          voltageChart.data.datasets[1].data.push(point.raw_voltage ?? null);
-          voltageChart.data.datasets[0].timestamps.push(point.timestamp);
-        }
-
-        if (voltageChart.data.labels.length > MAX_POINTS) {
-          voltageChart.data.labels.shift();
-          voltageChart.data.datasets[0].data.shift();
-          voltageChart.data.datasets[1].data.shift();
-          voltageChart.data.datasets[0].timestamps.shift();
-        }
-
-        voltageChart.update("none");
-        syncSampleCount();
-        updateStatus(point, point.condition);
+      function updateVolatilityChart(points) {
+        volatilityChart.data.labels = points.map((point) => formatClock(point.timestamp_local ?? point.timestamp));
+        volatilityChart.data.datasets[0].data = points.map((point) => point.raw_voltage ?? null);
+        volatilityChart.update("none");
       }
 
-      async function loadHistory() {
-        dom.connectionState.textContent = "Loading day history...";
-        const response = await fetch(historyEndpoint, { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error(`History request failed with status ${response.status}`);
-        }
-
-        const payload = await response.json();
-        const timestamps = [];
-        const labels = [];
-        const smoothedValues = [];
-        const rawValues = [];
-
-        for (const point of payload.points) {
-          timestamps.push(point.timestamp);
-          labels.push(formatClock(point.timestamp_local ?? point.timestamp));
-          smoothedValues.push(point.smoothed_voltage ?? point.raw_voltage ?? null);
-          rawValues.push(point.raw_voltage ?? null);
-        }
-
-        voltageChart.data.labels = labels;
-        voltageChart.data.datasets[0].data = smoothedValues;
-        voltageChart.data.datasets[1].data = rawValues;
-        voltageChart.data.datasets[0].timestamps = timestamps;
-        voltageChart.update("none");
-        syncSampleCount();
-        updateStatus(payload.latest, payload.condition);
-        dom.connectionState.textContent = "History loaded";
+      function updateDeltaChart(points) {
+        deltaChart.data.labels = points.map((point) => formatClock(point.timestamp_local ?? point.timestamp));
+        deltaChart.data.datasets[0].data = points.map((point) => point.delta_v_per_second ?? null);
+        deltaChart.update("none");
       }
 
-      function metricDetail(model, fallback) {
-        if (
-          !model ||
-          ((model.minutes_until === null || model.minutes_until === undefined) &&
-            (model.predicted_minutes === null || model.predicted_minutes === undefined))
-        ) {
-          return fallback;
+      function updateResidualChart(points) {
+        residualChart.data.labels = points.map((point) => formatDateTime(point.timestamp_local ?? point.timestamp));
+        residualChart.data.datasets[0].data = points.map((point) => point.residual_minutes ?? null);
+        residualChart.update("none");
+      }
+
+      function updateAnalytics(analytics) {
+        dom.percentilesCard.textContent = analytics.stats.p50_voltage !== null
+          ? `${analytics.stats.p50_voltage.toFixed(3)} / ${analytics.stats.p95_voltage.toFixed(3)} / ${analytics.stats.p99_voltage.toFixed(3)}`
+          : "-- / -- / --";
+        dom.snrValue.textContent = analytics.stats.snr_db !== null ? `${analytics.stats.snr_db.toFixed(2)} dB` : "Unavailable";
+        dom.uptimeValue.textContent = formatUptime(analytics.stats.uptime_seconds);
+        dom.liveWindowMeta.textContent = `Last ${analytics.volatility_window_seconds} seconds`;
+        dom.deltaMeta.textContent = `${analytics.volatility_points.length} live points in the rolling window`;
+        dom.residualSeriesMeta.textContent = `${analytics.ai_residuals.length} residual samples from recent training cycles`;
+        updateVolatilityChart(analytics.volatility_points);
+        updateDeltaChart(analytics.delta_points);
+        updateResidualChart(analytics.ai_residuals);
+        if (analytics.latest) {
+          updateStatus(analytics.latest, analytics.condition);
         }
-        const mae = model.mae_minutes !== null && model.mae_minutes !== undefined
-          ? `MAE ${model.mae_minutes} min`
-          : "MAE unavailable";
-        const r2 = model.r2_score !== null && model.r2_score !== undefined
-          ? `R² ${model.r2_score}`
-          : "R² unavailable";
-        return `${mae}, ${r2}.`;
       }
 
       function updateInsights(insights) {
         if (!insights || !insights.available) {
           dom.aiTimeEstimate.textContent = "--:--";
-          dom.aiTimeMeta.textContent = "ML engine has not produced a model snapshot yet.";
-          dom.aiSunsetEstimate.textContent = "Unavailable";
-          dom.aiSunsetMeta.textContent = "Sunset estimate will appear after enough day/night data accumulates.";
-          dom.aiSunriseEstimate.textContent = "Unavailable";
-          dom.aiSunriseMeta.textContent = "Sunrise estimate will appear after enough day/night data accumulates.";
-          dom.aiConfidenceLevel.textContent = "Unavailable";
-          dom.aiConfidenceMeta.textContent = "Confidence is based on holdout error from the latest training cycle.";
+          dom.aiTimeMeta.textContent = "ML engine has not emitted a snapshot yet.";
+          dom.sunsetEstimate.textContent = "Unavailable";
+          dom.sunsetMeta.textContent = "Sunset ETA will appear after the next stable training cycle.";
+          dom.sunriseEstimate.textContent = "Unavailable";
+          dom.sunriseMeta.textContent = "Sunrise ETA will appear after enough day-night transitions.";
+          dom.confidenceValue.textContent = "Unavailable";
+          dom.confidenceMeta.textContent = "Confidence is derived from holdout error.";
+          dom.residualNow.textContent = "-- min";
+          dom.residualMeta.textContent = "Residual drift will appear with the next trained time model.";
           return;
         }
 
         dom.aiTimeEstimate.textContent = insights.ai_time_estimate?.display_time || "--:--";
-        dom.aiTimeMeta.textContent = metricDetail(
-          insights.ai_time_estimate,
-          "Time-of-day model is warming up.",
-        );
-        dom.aiSunsetEstimate.textContent = insights.estimated_sunset?.display_eta || "Unavailable";
-        dom.aiSunsetMeta.textContent = metricDetail(
-          insights.estimated_sunset,
-          "Sunset model is warming up.",
-        );
-        dom.aiSunriseEstimate.textContent = insights.estimated_sunrise?.display_eta || "Unavailable";
-        dom.aiSunriseMeta.textContent = metricDetail(
-          insights.estimated_sunrise,
-          "Sunrise model is warming up.",
-        );
-        dom.aiConfidenceLevel.textContent = insights.confidence_level || "Unavailable";
-        dom.aiConfidenceMeta.textContent = insights.latest_point
-          ? `Latest training point at ${formatDateTime(insights.latest_point.timestamp_local || insights.latest_point.timestamp)}.`
-          : "Confidence is based on holdout error from the latest training cycle.";
+        dom.aiTimeMeta.textContent = insights.ai_time_estimate?.mae_minutes !== null
+          ? `MAE ${insights.ai_time_estimate.mae_minutes} min, R² ${insights.ai_time_estimate.r2_score}`
+          : "Time estimate model is warming up.";
+        dom.sunsetEstimate.textContent = insights.estimated_sunset?.display_eta || "Unavailable";
+        dom.sunsetMeta.textContent = insights.estimated_sunset?.mae_minutes !== null
+          ? `MAE ${insights.estimated_sunset.mae_minutes} min, confidence ${insights.estimated_sunset.confidence}.`
+          : "Sunset ETA is warming up.";
+        dom.sunriseEstimate.textContent = insights.estimated_sunrise?.display_eta || "Unavailable";
+        dom.sunriseMeta.textContent = insights.estimated_sunrise?.mae_minutes !== null
+          ? `MAE ${insights.estimated_sunrise.mae_minutes} min, confidence ${insights.estimated_sunrise.confidence}.`
+          : "Sunrise ETA is warming up.";
+        dom.confidenceValue.textContent = insights.confidence_level || "Unavailable";
+        dom.confidenceMeta.textContent = insights.latest_point
+          ? `Latest model snapshot at ${formatDateTime(insights.latest_point.timestamp_local || insights.latest_point.timestamp)}.`
+          : "Confidence is derived from holdout error.";
+
+        if (insights.residual_minutes !== null && insights.residual_minutes !== undefined) {
+          dom.residualNow.textContent = `${insights.residual_minutes.toFixed(2)} min`;
+          dom.residualMeta.textContent = "Signed drift between the AI clock and system time.";
+        } else {
+          dom.residualNow.textContent = "Unavailable";
+          dom.residualMeta.textContent = "Residual drift will appear after the next trained time model.";
+        }
+      }
+
+      function appendLivePoint(point) {
+        if (!point || !point.timestamp || state.lastLiveTimestamp === point.timestamp) {
+          return;
+        }
+
+        state.lastLiveTimestamp = point.timestamp;
+        state.livePoints.push(point);
+        const latestDate = new Date(point.timestamp);
+        state.livePoints = state.livePoints.filter((candidate) => latestDate - new Date(candidate.timestamp) <= 60_000);
+
+        const deltaPoints = state.livePoints.map((candidate, index) => {
+          if (index === 0) {
+            return {
+              timestamp: candidate.timestamp,
+              timestamp_local: candidate.timestamp_local,
+              delta_v_per_second: 0,
+            };
+          }
+
+          const previous = state.livePoints[index - 1];
+          const deltaSeconds = (new Date(candidate.timestamp) - new Date(previous.timestamp)) / 1000;
+          const delta = deltaSeconds > 0
+            ? ((candidate.raw_voltage ?? 0) - (previous.raw_voltage ?? 0)) / deltaSeconds
+            : 0;
+          return {
+            timestamp: candidate.timestamp,
+            timestamp_local: candidate.timestamp_local,
+            delta_v_per_second: Number(delta.toFixed(6)),
+          };
+        });
+
+        updateVolatilityChart(state.livePoints);
+        updateDeltaChart(deltaPoints);
+        updateStatus(point, point.condition);
+      }
+
+      async function loadHistory() {
+        const response = await fetch(historyEndpoint, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`History request failed with status ${response.status}`);
+        }
+        const payload = await response.json();
+        updateTrendChart(payload.points);
+        dom.dayRangeMeta.textContent = `${payload.day} · ${payload.points.length} aggregated points · ${payload.timezone}`;
+        if (payload.latest) {
+          updateStatus(payload.latest, payload.condition);
+        }
+      }
+
+      async function loadAnalytics() {
+        const response = await fetch(analyticsEndpoint, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`Analytics request failed with status ${response.status}`);
+        }
+        const payload = await response.json();
+        state.livePoints = payload.volatility_points ?? [];
+        updateAnalytics(payload);
       }
 
       async function loadInsights() {
@@ -689,63 +929,59 @@
         const source = new EventSource(liveEndpoint);
 
         source.addEventListener("open", () => {
-          dom.streamHint.textContent = "Live event stream is connected.";
-          dom.connectionState.textContent = "Live";
+          dom.connectionState.textContent = "SSE stream connected";
         });
 
         source.addEventListener("status", (event) => {
           const payload = JSON.parse(event.data);
-          dom.streamTransport.textContent = "SSE";
-          dom.streamHint.textContent = `Connected to ${payload.sensor_id}.`;
+          dom.connectionState.textContent = `Streaming ${payload.sensor_id} in ${dashboardTimezone}`;
         });
 
         source.addEventListener("telemetry", (event) => {
           const payload = JSON.parse(event.data);
-          appendPoint(payload);
-          dom.connectionState.textContent = "Streaming live";
-        });
-
-        source.addEventListener("heartbeat", () => {
-          dom.connectionState.textContent = "Live heartbeat";
+          appendLivePoint(payload);
+          dom.footerNote.textContent = `Live packet received at ${formatClock(payload.timestamp_local ?? payload.timestamp)}.`;
         });
 
         source.addEventListener("stream-error", (event) => {
-          if (event?.data) {
-            try {
-              const payload = JSON.parse(event.data);
-              dom.streamHint.textContent = payload.message || "Live stream error.";
-            } catch (_error) {
-              dom.streamHint.textContent = "Live stream error.";
-            }
-          } else {
-            dom.streamHint.textContent = "Waiting for the event stream to recover.";
+          try {
+            const payload = JSON.parse(event.data);
+            dom.connectionState.textContent = payload.message || "Live stream error";
+          } catch (_error) {
+            dom.connectionState.textContent = "Live stream error";
           }
         });
 
         source.onerror = () => {
-          dom.connectionState.textContent = "Reconnecting...";
-          dom.streamHint.textContent = "Connection lost. EventSource is retrying automatically.";
+          dom.connectionState.textContent = "SSE reconnecting...";
         };
       }
 
       async function boot() {
         try {
           await loadHistory();
-        } catch (error) {
-          dom.connectionState.textContent = "History unavailable";
-          dom.streamHint.textContent = error.message;
-        }
-        try {
+          await loadAnalytics();
           await loadInsights();
         } catch (error) {
-          dom.aiConfidenceMeta.textContent = error.message;
+          dom.connectionState.textContent = error.message;
         }
+
         connectLive();
         window.setInterval(() => {
-          loadInsights().catch((error) => {
-            dom.aiConfidenceMeta.textContent = error.message;
+          loadAnalytics().catch((error) => {
+            dom.connectionState.textContent = error.message;
           });
-        }, 60_000);
+        }, analyticsRefreshMs);
+        window.setInterval(() => {
+          loadInsights().catch((error) => {
+            dom.confidenceMeta.textContent = error.message;
+          });
+        }, insightsRefreshMs);
+        window.setInterval(() => {
+          loadHistory().catch((error) => {
+            dom.dayRangeMeta.textContent = error.message;
+          });
+        }, historyRefreshMs);
       }
 
       boot();
