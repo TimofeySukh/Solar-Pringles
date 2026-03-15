@@ -576,6 +576,10 @@
       const state = {
         lastLiveTimestamp: null,
         livePoints: [],
+        liveSource: null,
+        analyticsTimerId: null,
+        insightsTimerId: null,
+        historyTimerId: null,
       };
 
       const dom = {
@@ -1066,7 +1070,12 @@
       }
 
       function connectLive() {
+        if (state.liveSource || document.hidden) {
+          return;
+        }
+
         const source = new EventSource(liveEndpoint);
+        state.liveSource = source;
 
         source.addEventListener("open", () => {
           dom.connectionState.textContent = "SSE stream connected";
@@ -1097,6 +1106,69 @@
         };
       }
 
+      function disconnectLive(reason) {
+        if (state.liveSource) {
+          state.liveSource.close();
+          state.liveSource = null;
+        }
+        if (reason) {
+          dom.connectionState.textContent = reason;
+        }
+      }
+
+      function startPolling() {
+        if (state.analyticsTimerId === null) {
+          state.analyticsTimerId = window.setInterval(() => {
+            if (document.hidden) {
+              return;
+            }
+            loadAnalytics().catch((error) => {
+              dom.connectionState.textContent = error.message;
+            });
+          }, analyticsRefreshMs);
+        }
+
+        if (state.insightsTimerId === null) {
+          state.insightsTimerId = window.setInterval(() => {
+            if (document.hidden) {
+              return;
+            }
+            loadInsights().catch((error) => {
+              dom.confidenceMeta.textContent = error.message;
+            });
+          }, insightsRefreshMs);
+        }
+
+        if (state.historyTimerId === null) {
+          state.historyTimerId = window.setInterval(() => {
+            if (document.hidden) {
+              return;
+            }
+            loadHistory().catch((error) => {
+              dom.dayRangeMeta.textContent = error.message;
+            });
+          }, historyRefreshMs);
+        }
+      }
+
+      function handleVisibilityChange() {
+        if (document.hidden) {
+          disconnectLive("Dashboard paused in background");
+          return;
+        }
+
+        connectLive();
+        loadAnalytics().catch((error) => {
+          dom.connectionState.textContent = error.message;
+        });
+        loadInsights().catch((error) => {
+          dom.confidenceMeta.textContent = error.message;
+        });
+        loadHistory().catch((error) => {
+          dom.dayRangeMeta.textContent = error.message;
+        });
+      }
+
       async function boot() {
         try {
           await loadHistory();
@@ -1107,21 +1179,8 @@
         }
 
         connectLive();
-        window.setInterval(() => {
-          loadAnalytics().catch((error) => {
-            dom.connectionState.textContent = error.message;
-          });
-        }, analyticsRefreshMs);
-        window.setInterval(() => {
-          loadInsights().catch((error) => {
-            dom.confidenceMeta.textContent = error.message;
-          });
-        }, insightsRefreshMs);
-        window.setInterval(() => {
-          loadHistory().catch((error) => {
-            dom.dayRangeMeta.textContent = error.message;
-          });
-        }, historyRefreshMs);
+        startPolling();
+        document.addEventListener("visibilitychange", handleVisibilityChange);
       }
 
       boot();

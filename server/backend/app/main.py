@@ -4,6 +4,7 @@ import asyncio
 import json
 import math
 import os
+import time as time_module
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
@@ -31,6 +32,8 @@ class Settings:
     timezone_name: str = os.getenv("SOLAR_TIMEZONE", "Europe/Copenhagen")
     model_registry_dir: str = os.getenv("MODEL_REGISTRY_DIR", "/models")
     live_poll_interval_seconds: float = float(os.getenv("LIVE_POLL_INTERVAL_SECONDS", "1.0"))
+    analytics_cache_ttl_seconds: float = float(os.getenv("ANALYTICS_CACHE_TTL_SECONDS", "3.0"))
+    history_cache_ttl_seconds: float = float(os.getenv("HISTORY_CACHE_TTL_SECONDS", "30.0"))
 
 
 SETTINGS = Settings()
@@ -97,6 +100,36 @@ from(bucket: "{self.settings.influxdb_bucket}")
             rows.extend(self._row_to_point(record) for record in table.records)
         return rows
 
+    def _query_latest_point(self, sensor_id: str) -> dict[str, Any] | None:
+        query = f"""
+from(bucket: "{self.settings.influxdb_bucket}")
+  |> range(start: -24h)
+  |> filter(fn: (r) => r["_measurement"] == "{self.settings.influxdb_measurement}")
+  |> filter(fn: (r) => r["sensor_id"] == "{sensor_id}")
+  |> last()
+  |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
+  |> keep(
+    columns: [
+      "_time",
+      "sensor_id",
+      "raw_voltage",
+      "raw_voltage_last",
+      "smoothed_voltage",
+      "smoothed_voltage_last",
+      "raw_min_5s",
+      "raw_max_5s",
+      "raw_mean_5s",
+      "sample_count_5s",
+      "uptime_seconds"
+    ]
+  )
+"""
+        tables = self.query_api.query(query)
+        for table in tables:
+            for record in table.records:
+                return self._row_to_point(record)
+        return None
+
     @staticmethod
     def _row_to_point(record: Any) -> dict[str, Any]:
         recorded_at = record.get_time()
@@ -127,8 +160,7 @@ from(bucket: "{self.settings.influxdb_bucket}")
         }
 
     def fetch_latest(self, sensor_id: str) -> dict[str, Any] | None:
-        rows = self._query_points(sensor_id, start=utc_now() - timedelta(hours=12))
-        return rows[-1] if rows else None
+        return self._query_latest_point(sensor_id)
 
     def fetch_history(self, sensor_id: str, target_day: date, every_minutes: int) -> list[dict[str, Any]]:
         start_local = datetime.combine(target_day, time.min, tzinfo=LOCAL_TIMEZONE)
@@ -147,6 +179,8 @@ from(bucket: "{self.settings.influxdb_bucket}")
 app = FastAPI(title=SETTINGS.api_title, version="0.4.0")
 app.state.settings = SETTINGS
 app.state.influx = None
+app.state.analytics_cache = {}
+app.state.history_cache = {}
 
 
 @app.on_event("startup")
@@ -166,6 +200,27 @@ def get_repository(request: Request) -> InfluxRepository:
     if repository is None:
         raise HTTPException(status_code=503, detail="InfluxDB repository is not ready")
     return repository
+
+
+def get_cached_payload(cache: dict[tuple[Any, ...], tuple[float, dict[str, Any]]], key: tuple[Any, ...]) -> dict[str, Any] | None:
+    cached = cache.get(key)
+    if cached is None:
+        return None
+    expires_at, payload = cached
+    if expires_at <= time_module.monotonic():
+        cache.pop(key, None)
+        return None
+    return payload
+
+
+def put_cached_payload(
+    cache: dict[tuple[Any, ...], tuple[float, dict[str, Any]]],
+    key: tuple[Any, ...],
+    ttl_seconds: float,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    cache[key] = (time_module.monotonic() + ttl_seconds, payload)
+    return payload
 
 
 def parse_sensor_id(sensor_id: str | None) -> str:
@@ -474,10 +529,16 @@ async def api_history(
     repository = get_repository(request)
     parsed_sensor_id = parse_sensor_id(sensor_id)
     target_day = day or local_now().date()
+    cache_key = (parsed_sensor_id, target_day.isoformat(), interval_minutes)
+    history_cache = request.app.state.history_cache
+    cached_payload = get_cached_payload(history_cache, cache_key)
+    if cached_payload is not None:
+        return cached_payload
+
     points = await asyncio.to_thread(repository.fetch_history, parsed_sensor_id, target_day, interval_minutes)
     latest = points[-1] if points else None
 
-    return {
+    payload = {
         "sensor_id": parsed_sensor_id,
         "day": target_day.isoformat(),
         "interval_minutes": interval_minutes,
@@ -486,6 +547,7 @@ async def api_history(
         "latest": latest,
         "condition": classify_status(effective_voltage(latest)) if latest else "No data",
     }
+    return put_cached_payload(history_cache, cache_key, SETTINGS.history_cache_ttl_seconds, payload)
 
 
 @app.get("/api/insights")
@@ -504,11 +566,17 @@ def api_insights() -> dict[str, Any]:
 async def api_analytics(request: Request, sensor_id: str | None = None) -> dict[str, Any]:
     repository = get_repository(request)
     parsed_sensor_id = parse_sensor_id(sensor_id)
+    analytics_cache = request.app.state.analytics_cache
+    cache_key = (parsed_sensor_id,)
+    cached_payload = get_cached_payload(analytics_cache, cache_key)
+    if cached_payload is not None:
+        return cached_payload
+
     recent_points = await asyncio.to_thread(repository.fetch_recent, parsed_sensor_id, timedelta(hours=1))
     latest_insights = read_latest_insights()
     analytics = build_analytics_payload(recent_points, latest_insights)
     analytics["sensor_id"] = parsed_sensor_id
-    return analytics
+    return put_cached_payload(analytics_cache, cache_key, SETTINGS.analytics_cache_ttl_seconds, analytics)
 
 
 @app.get("/api/live")
