@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sollar Panel Temperature Detail</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap");
+
+      :root {
+        color-scheme: dark;
+        --bg: #05070a;
+        --panel: rgba(8, 16, 24, 0.92);
+        --line: rgba(107, 216, 255, 0.15);
+        --text: #ebfff5;
+        --muted: #86a99b;
+        --temp: #6bd8ff;
+        --humidity: #58ffa9;
+        --accent: #ff9e45;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "JetBrains Mono", "Roboto Mono", monospace;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top right, rgba(107, 216, 255, 0.14), transparent 22%),
+          radial-gradient(circle at left 18%, rgba(88, 255, 169, 0.08), transparent 18%),
+          linear-gradient(180deg, rgba(255, 158, 69, 0.04), transparent 30%),
+          var(--bg);
+      }
+
+      .shell { width: min(1500px, calc(100% - 24px)); margin: 0 auto; padding: 20px 0 32px; }
+      .frame {
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        overflow: hidden;
+        background: linear-gradient(180deg, rgba(7, 14, 22, 0.96), rgba(5, 10, 14, 0.94));
+      }
+      .topbar, .content { padding: 24px; }
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        flex-wrap: wrap;
+        border-bottom: 1px solid rgba(107, 216, 255, 0.08);
+      }
+      .eyebrow {
+        margin: 0 0 10px;
+        color: var(--temp);
+        font-size: 0.76rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+      h1 { margin: 0; font-size: clamp(2rem, 4vw, 3.6rem); line-height: 1; letter-spacing: -0.05em; }
+      p { color: var(--muted); line-height: 1.7; }
+      .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+      .nav-button {
+        display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
+        padding: 0 18px; border-radius: 999px; border: 1px solid rgba(107, 216, 255, 0.28);
+        color: var(--text); text-decoration: none;
+        background: linear-gradient(180deg, rgba(107, 216, 255, 0.16), rgba(107, 216, 255, 0.06));
+      }
+      .status-box { min-width: min(360px, 100%); }
+      .cards, .grid { display: grid; gap: 16px; }
+      .cards { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 16px; }
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: rgba(7, 15, 22, 0.88);
+        padding: 18px;
+        overflow: hidden;
+      }
+      .span-2 { grid-column: span 2; }
+      .card-label { color: var(--muted); font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; }
+      .card-value { margin-top: 12px; font-size: clamp(1.2rem, 2.4vw, 2.4rem); font-weight: 700; letter-spacing: -0.05em; }
+      .card-meta, .panel-subtitle { color: var(--muted); font-size: 0.84rem; line-height: 1.6; }
+      .panel-header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+      .panel-title { margin: 0; font-size: 1rem; }
+      .chart-box { position: relative; height: 300px; }
+      .span-2 .chart-box { height: 360px; }
+      .chart-box canvas { width: 100% !important; height: 100% !important; }
+      .forecast-box {
+        display: grid; gap: 16px; grid-template-columns: minmax(220px, 0.55fr) minmax(0, 1fr);
+        align-items: stretch;
+      }
+      .forecast-controls {
+        border: 1px solid rgba(107, 216, 255, 0.12); border-radius: 18px; padding: 16px; background: rgba(5, 13, 18, 0.78);
+      }
+      select {
+        width: 100%; margin-top: 10px; min-height: 44px; border-radius: 14px;
+        border: 1px solid rgba(107, 216, 255, 0.24); background: rgba(4, 10, 15, 0.96);
+        color: var(--text); padding: 0 12px; font: inherit;
+      }
+      .forecast-value { margin-top: 14px; font-size: 2.2rem; color: var(--accent); font-weight: 700; }
+      .footer { display:flex; gap:10px; align-items:center; padding: 14px 24px 22px; border-top: 1px solid rgba(107, 216, 255, 0.08); color: var(--muted); font-size: 0.88rem; }
+      .footer-led { width: 9px; height: 9px; border-radius: 50%; background: var(--temp); box-shadow: 0 0 18px rgba(107, 216, 255, 0.55); }
+
+      @media (max-width: 1080px) {
+        .cards, .grid, .forecast-box { grid-template-columns: 1fr; }
+        .span-2 { grid-column: span 1; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <section class="frame">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Climate Command Deck</p>
+            <h1>Temperature detail</h1>
+            <p>
+              This view focuses on temperature and humidity. It keeps the signal readable, then adds
+              a simple weighted hourly estimate built from the last 30 days.
+            </p>
+            <div class="actions">
+              <a class="nav-button" href="/">Back to overview</a>
+              <a class="nav-button" href="/solar-details.html">See more about the sun</a>
+              <a class="nav-button" href="/solar-farm.html">Our solarpanel farm</a>
+            </div>
+          </div>
+          <div class="status-box">
+            <div class="card-label">Last climate packet</div>
+            <div class="card-value" id="lastUpdate">Unknown</div>
+            <div class="card-meta" id="statusMeta">Waiting for climate analytics.</div>
+          </div>
+        </header>
+
+        <section class="content">
+          <div class="cards">
+            <article class="panel">
+              <div class="card-label">Current temperature</div>
+              <div class="card-value" style="color: var(--temp)" id="currentTemp">--.- °C</div>
+              <div class="card-meta">Latest point received from the edge node.</div>
+            </article>
+            <article class="panel">
+              <div class="card-label">Current humidity</div>
+              <div class="card-value" style="color: var(--humidity)" id="currentHumidity">--.- %</div>
+              <div class="card-meta">Live relative humidity at the node.</div>
+            </article>
+            <article class="panel">
+              <div class="card-label">3-day average</div>
+              <div class="card-value" id="avgTemp">--.- °C</div>
+              <div class="card-meta">Mean of the recent 3-day climate window.</div>
+            </article>
+            <article class="panel">
+              <div class="card-label">30-day rhythm</div>
+              <div class="card-value" id="hourlyMean">--.- °C</div>
+              <div class="card-meta">Average for the currently selected hour across the 30-day climatology.</div>
+            </article>
+          </div>
+
+          <div class="grid">
+            <article class="panel span-2">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Temperature Trend</p>
+                  <h2 class="panel-title">Last 72 Hours</h2>
+                  <p class="panel-subtitle">Smoothed climate history in Copenhagen time.</p>
+                </div>
+                <div class="panel-subtitle" id="tempSeriesMeta">Loading...</div>
+              </div>
+              <div class="chart-box"><canvas id="tempChart"></canvas></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Humidity</p>
+                  <h2 class="panel-title">Last 72 Hours</h2>
+                  <p class="panel-subtitle">Relative humidity over the same recent window.</p>
+                </div>
+              </div>
+              <div class="chart-box"><canvas id="humidityChart"></canvas></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Daily Range</p>
+                  <h2 class="panel-title">30-Day Envelope</h2>
+                  <p class="panel-subtitle">Daily mean with observed low and high bounds.</p>
+                </div>
+              </div>
+              <div class="chart-box"><canvas id="dailyRangeChart"></canvas></div>
+            </article>
+
+            <article class="panel span-2">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Hour Picker</p>
+                  <h2 class="panel-title">Weighted Hourly Estimate</h2>
+                  <p class="panel-subtitle">A recency-weighted KNN-style estimate using the last 30 days of the same hour.</p>
+                </div>
+              </div>
+              <div class="forecast-box">
+                <div class="forecast-controls">
+                  <label class="card-label" for="hourSelect">Select local hour</label>
+                  <select id="hourSelect"></select>
+                  <div class="forecast-value" id="forecastValue">--.- °C</div>
+                  <div class="card-meta" id="forecastMeta">Choose an hour to estimate its temperature.</div>
+                </div>
+                <div class="chart-box"><canvas id="hourlyProfileChart"></canvas></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <footer class="footer">
+          <span class="footer-led"></span>
+          <span id="footerText">Climate analytics synchronized to Europe/Copenhagen.</span>
+        </footer>
+      </section>
+    </div>
+
+    <script>
+      const climateEndpoint = "/api/climate";
+      const forecastEndpoint = "/api/climate/forecast";
+
+      const dom = {
+        lastUpdate: document.getElementById("lastUpdate"),
+        statusMeta: document.getElementById("statusMeta"),
+        currentTemp: document.getElementById("currentTemp"),
+        currentHumidity: document.getElementById("currentHumidity"),
+        avgTemp: document.getElementById("avgTemp"),
+        hourlyMean: document.getElementById("hourlyMean"),
+        tempSeriesMeta: document.getElementById("tempSeriesMeta"),
+        forecastValue: document.getElementById("forecastValue"),
+        forecastMeta: document.getElementById("forecastMeta"),
+        hourSelect: document.getElementById("hourSelect"),
+        footerText: document.getElementById("footerText"),
+      };
+
+      const state = { climate: null };
+
+      function formatClock(timestamp) {
+        const date = new Date(timestamp);
+        if (Number.isNaN(date.getTime())) return "Unknown";
+        return date.toLocaleString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          month: "short",
+          day: "2-digit",
+          timeZone: "Europe/Copenhagen",
+        });
+      }
+
+      function createGradient(context, topColor, bottomColor) {
+        const gradient = context.createLinearGradient(0, 0, 0, 320);
+        gradient.addColorStop(0, topColor);
+        gradient.addColorStop(1, bottomColor);
+        return gradient;
+      }
+
+      function chartOptions(unit, min = null, max = null) {
+        return {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          plugins: {
+            legend: { labels: { color: "#ebfff5", usePointStyle: true } },
+          },
+          scales: {
+            x: {
+              ticks: { color: "#86a99b", autoSkip: true, maxTicksLimit: 10 },
+              grid: { color: "rgba(107, 216, 255, 0.06)" },
+            },
+            y: {
+              min,
+              max,
+              ticks: { color: "#86a99b", callback: (value) => `${Number(value).toFixed(1)} ${unit}` },
+              grid: { color: "rgba(107, 216, 255, 0.08)" },
+            },
+          },
+        };
+      }
+
+      function buildChart(canvasId, configFactory) {
+        const context = document.getElementById(canvasId).getContext("2d");
+        return new Chart(context, configFactory(context));
+      }
+
+      const tempChart = buildChart("tempChart", (context) => ({
+        type: "line",
+        data: { labels: [], datasets: [{ label: "Temperature", data: [], borderColor: "#6bd8ff", backgroundColor: createGradient(context, "rgba(107, 216, 255, 0.32)", "rgba(107, 216, 255, 0.02)"), fill: true, tension: 0.25, pointRadius: 0, borderWidth: 2 }] },
+        options: chartOptions("°C"),
+      }));
+      const humidityChart = buildChart("humidityChart", (context) => ({
+        type: "line",
+        data: { labels: [], datasets: [{ label: "Humidity", data: [], borderColor: "#58ffa9", backgroundColor: createGradient(context, "rgba(88, 255, 169, 0.25)", "rgba(88, 255, 169, 0.02)"), fill: true, tension: 0.25, pointRadius: 0, borderWidth: 2 }] },
+        options: chartOptions("%", 0, 100),
+      }));
+      const dailyRangeChart = buildChart("dailyRangeChart", () => ({
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [
+            { label: "Daily mean", data: [], borderColor: "#6bd8ff", tension: 0.2, pointRadius: 0, borderWidth: 2 },
+            { label: "Daily high", data: [], borderColor: "#ff9e45", tension: 0.2, pointRadius: 0, borderWidth: 1.4, borderDash: [5, 6] },
+            { label: "Daily low", data: [], borderColor: "#58ffa9", tension: 0.2, pointRadius: 0, borderWidth: 1.4, borderDash: [5, 6] },
+          ],
+        },
+        options: chartOptions("°C"),
+      }));
+      const hourlyProfileChart = buildChart("hourlyProfileChart", (context) => ({
+        type: "bar",
+        data: { labels: [], datasets: [{ label: "Hourly mean temperature", data: [], backgroundColor: createGradient(context, "rgba(255, 158, 69, 0.8)", "rgba(107, 216, 255, 0.28)"), borderColor: "#ff9e45", borderWidth: 1 }] },
+        options: chartOptions("°C"),
+      }));
+
+      function populateHourSelect() {
+        const currentHour = new Date().getHours();
+        for (let hour = 0; hour < 24; hour += 1) {
+          const option = document.createElement("option");
+          option.value = String(hour);
+          option.textContent = `${String(hour).padStart(2, "0")}:00`;
+          if (hour === currentHour) option.selected = true;
+          dom.hourSelect.appendChild(option);
+        }
+      }
+
+      function updateClimate(payload) {
+        state.climate = payload;
+        const latest = payload.latest;
+        dom.lastUpdate.textContent = latest ? formatClock(latest.timestamp_local || latest.timestamp) : "Unknown";
+        dom.statusMeta.textContent = latest
+          ? `Latest packet: ${latest.temperature_c?.toFixed(1) ?? "--.-"} °C and ${latest.humidity_pct?.toFixed(0) ?? "--"}% humidity.`
+          : "Waiting for climate analytics.";
+        dom.currentTemp.textContent = typeof latest?.temperature_c === "number" ? `${latest.temperature_c.toFixed(1)} °C` : "--.- °C";
+        dom.currentHumidity.textContent = typeof latest?.humidity_pct === "number" ? `${latest.humidity_pct.toFixed(0)} %` : "--.- %";
+
+        const tempValues = payload.recent_temperature_points.map((point) => point.temperature_c).filter((value) => typeof value === "number");
+        const meanTemp = tempValues.length ? tempValues.reduce((sum, value) => sum + value, 0) / tempValues.length : null;
+        dom.avgTemp.textContent = meanTemp !== null ? `${meanTemp.toFixed(1)} °C` : "--.- °C";
+
+        tempChart.data.labels = payload.recent_temperature_points.map((point) => formatClock(point.timestamp_local || point.timestamp));
+        tempChart.data.datasets[0].data = payload.recent_temperature_points.map((point) => point.temperature_c);
+        tempChart.update("none");
+        dom.tempSeriesMeta.textContent = `${payload.recent_temperature_points.length} aggregated points over the recent 72-hour window`;
+
+        humidityChart.data.labels = payload.recent_humidity_points.map((point) => formatClock(point.timestamp_local || point.timestamp));
+        humidityChart.data.datasets[0].data = payload.recent_humidity_points.map((point) => point.humidity_pct);
+        humidityChart.update("none");
+
+        dailyRangeChart.data.labels = payload.daily_summary.map((point) => point.day.slice(5));
+        dailyRangeChart.data.datasets[0].data = payload.daily_summary.map((point) => point.temp_mean_c);
+        dailyRangeChart.data.datasets[1].data = payload.daily_summary.map((point) => point.temp_max_c);
+        dailyRangeChart.data.datasets[2].data = payload.daily_summary.map((point) => point.temp_min_c);
+        dailyRangeChart.update("none");
+
+        hourlyProfileChart.data.labels = payload.hourly_climatology.map((point) => `${String(point.hour).padStart(2, "0")}:00`);
+        hourlyProfileChart.data.datasets[0].data = payload.hourly_climatology.map((point) => point.mean_temperature_c);
+        hourlyProfileChart.update("none");
+
+        const selectedHour = Number(dom.hourSelect.value);
+        const currentHourMean = payload.hourly_climatology.find((point) => point.hour === selectedHour)?.mean_temperature_c;
+        dom.hourlyMean.textContent = currentHourMean !== null && currentHourMean !== undefined ? `${currentHourMean.toFixed(1)} °C` : "--.- °C";
+      }
+
+      async function loadForecast() {
+        const hour = Number(dom.hourSelect.value);
+        const response = await fetch(`${forecastEndpoint}?hour=${hour}`, { cache: "no-store" });
+        const payload = await response.json();
+        dom.forecastValue.textContent = payload.estimate_temperature_c !== null ? `${payload.estimate_temperature_c.toFixed(1)} °C` : "Unavailable";
+        dom.forecastMeta.textContent = payload.neighbor_count > 0
+          ? `${payload.method}. Using ${payload.neighbor_count} nearest day-neighbors for ${String(hour).padStart(2, "0")}:00. Range ${payload.min_neighbor_c}..${payload.max_neighbor_c} °C.`
+          : "No historical neighbors were available for that hour.";
+      }
+
+      async function init() {
+        populateHourSelect();
+        const response = await fetch(climateEndpoint, { cache: "no-store" });
+        const payload = await response.json();
+        updateClimate(payload);
+        await loadForecast();
+        dom.footerText.textContent = "Climate detail deck loaded successfully.";
+      }
+
+      dom.hourSelect.addEventListener("change", loadForecast);
+
+      init().catch((error) => {
+        dom.footerText.textContent = `Climate detail failed to load: ${error.message}`;
+      });
+    </script>
+  </body>
+</html>

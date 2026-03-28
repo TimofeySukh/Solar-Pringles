@@ -154,6 +154,18 @@ from(bucket: "{self.settings.influxdb_bucket}")
     def fetch_recent(self, sensor_id: str, lookback: timedelta) -> list[dict[str, Any]]:
         return self._query_points(sensor_id, start=utc_now() - lookback)
 
+    def fetch_recent_aggregated(
+        self,
+        sensor_id: str,
+        lookback: timedelta,
+        every_minutes: int,
+    ) -> list[dict[str, Any]]:
+        return self._query_points(
+            sensor_id=sensor_id,
+            start=utc_now() - lookback,
+            every_minutes=every_minutes,
+        )
+
 
 app = FastAPI(title=SETTINGS.api_title, version="0.4.0")
 app.state.settings = SETTINGS
@@ -411,6 +423,150 @@ def build_stats(points: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def mean_or_none(values: list[float]) -> float | None:
+    if not values:
+        return None
+    return float(sum(values) / len(values))
+
+
+def build_climate_payload(
+    latest_point: dict[str, Any] | None,
+    recent_points: list[dict[str, Any]],
+    historical_points: list[dict[str, Any]],
+) -> dict[str, Any]:
+    latest = latest_point or (recent_points[-1] if recent_points else (historical_points[-1] if historical_points else None))
+
+    recent_temperature_points = [
+        {
+            "timestamp": point["timestamp"],
+            "timestamp_local": point["timestamp_local"],
+            "temperature_c": point["temperature_c"],
+        }
+        for point in recent_points
+        if point.get("temperature_c") is not None
+    ]
+    recent_humidity_points = [
+        {
+            "timestamp": point["timestamp"],
+            "timestamp_local": point["timestamp_local"],
+            "humidity_pct": point["humidity_pct"],
+        }
+        for point in recent_points
+        if point.get("humidity_pct") is not None
+    ]
+
+    daily_buckets: dict[str, dict[str, Any]] = {}
+    hourly_profile: dict[int, list[float]] = {hour: [] for hour in range(24)}
+    for point in historical_points:
+        timestamp_local = parse_iso_timestamp(point["timestamp"]).astimezone(LOCAL_TIMEZONE)
+        day_key = timestamp_local.date().isoformat()
+        hour_key = timestamp_local.hour
+        temperature_c = point.get("temperature_c")
+        humidity_pct = point.get("humidity_pct")
+
+        if temperature_c is not None:
+            hourly_profile[hour_key].append(float(temperature_c))
+            bucket = daily_buckets.setdefault(
+                day_key,
+                {
+                    "day": day_key,
+                    "temperature_values": [],
+                    "humidity_values": [],
+                },
+            )
+            bucket["temperature_values"].append(float(temperature_c))
+            if humidity_pct is not None:
+                bucket["humidity_values"].append(float(humidity_pct))
+
+    daily_summary = []
+    for day_key in sorted(daily_buckets):
+        bucket = daily_buckets[day_key]
+        temperature_values = bucket["temperature_values"]
+        humidity_values = bucket["humidity_values"]
+        daily_summary.append(
+            {
+                "day": day_key,
+                "temp_min_c": round(min(temperature_values), 2) if temperature_values else None,
+                "temp_max_c": round(max(temperature_values), 2) if temperature_values else None,
+                "temp_mean_c": round(mean_or_none(temperature_values), 2) if temperature_values else None,
+                "humidity_mean_pct": round(mean_or_none(humidity_values), 2) if humidity_values else None,
+            }
+        )
+
+    hourly_climatology = [
+        {
+            "hour": hour,
+            "mean_temperature_c": round(mean_or_none(hourly_profile[hour]), 2) if hourly_profile[hour] else None,
+        }
+        for hour in range(24)
+    ]
+
+    return {
+        "timezone": SETTINGS.timezone_name,
+        "latest": latest,
+        "recent_temperature_points": recent_temperature_points,
+        "recent_humidity_points": recent_humidity_points,
+        "daily_summary": daily_summary,
+        "hourly_climatology": hourly_climatology,
+    }
+
+
+def build_temperature_forecast(
+    hourly_points: list[dict[str, Any]],
+    target_hour: int,
+    neighbors: int = 14,
+) -> dict[str, Any]:
+    candidates: list[dict[str, Any]] = []
+    today_local = local_now().date()
+
+    grouped_by_day: dict[str, list[float]] = {}
+    for point in hourly_points:
+        temperature_c = point.get("temperature_c")
+        if temperature_c is None:
+            continue
+        timestamp_local = parse_iso_timestamp(point["timestamp"]).astimezone(LOCAL_TIMEZONE)
+        if timestamp_local.hour != target_hour:
+            continue
+        day_key = timestamp_local.date().isoformat()
+        grouped_by_day.setdefault(day_key, []).append(float(temperature_c))
+
+    for day_key, values in grouped_by_day.items():
+        candidate_day = date.fromisoformat(day_key)
+        days_ago = max((today_local - candidate_day).days, 0)
+        recency_weight = 1 / ((days_ago + 1) ** 1.15)
+        temperature_mean = mean_or_none(values)
+        if temperature_mean is None:
+            continue
+        candidates.append(
+            {
+                "day": day_key,
+                "temperature_c": round(temperature_mean, 2),
+                "days_ago": days_ago,
+                "weight": recency_weight,
+            }
+        )
+
+    candidates.sort(key=lambda row: (row["days_ago"], -row["weight"]))
+    selected = candidates[:neighbors]
+    total_weight = sum(row["weight"] for row in selected)
+    estimate = None
+    if selected and total_weight > 0:
+        estimate = sum(row["temperature_c"] * row["weight"] for row in selected) / total_weight
+
+    baseline_values = [row["temperature_c"] for row in selected]
+    return {
+        "timezone": SETTINGS.timezone_name,
+        "hour": target_hour,
+        "estimate_temperature_c": round(estimate, 2) if estimate is not None else None,
+        "neighbor_count": len(selected),
+        "weight_sum": round(total_weight, 4),
+        "min_neighbor_c": round(min(baseline_values), 2) if baseline_values else None,
+        "max_neighbor_c": round(max(baseline_values), 2) if baseline_values else None,
+        "neighbors": selected,
+        "method": "recency-weighted hourly neighbors over the last 30 days",
+    }
+
+
 def build_analytics_payload(
     recent_points: list[dict[str, Any]],
     latest_insights: dict[str, Any] | None,
@@ -556,6 +712,33 @@ async def api_analytics(request: Request, sensor_id: str | None = None) -> dict[
     analytics = build_analytics_payload(recent_points, latest_insights)
     analytics["sensor_id"] = parsed_sensor_id
     return put_cached_payload(analytics_cache, cache_key, SETTINGS.analytics_cache_ttl_seconds, analytics)
+
+
+@app.get("/api/climate")
+async def api_climate(request: Request, sensor_id: str | None = None) -> dict[str, Any]:
+    repository = get_repository(request)
+    parsed_sensor_id = parse_sensor_id(sensor_id)
+
+    latest_point = await asyncio.to_thread(repository.fetch_latest, parsed_sensor_id)
+    recent_points = await asyncio.to_thread(repository.fetch_recent_aggregated, parsed_sensor_id, timedelta(days=3), 30)
+    historical_points = await asyncio.to_thread(repository.fetch_recent_aggregated, parsed_sensor_id, timedelta(days=30), 60)
+    payload = build_climate_payload(latest_point, recent_points, historical_points)
+    payload["sensor_id"] = parsed_sensor_id
+    return payload
+
+
+@app.get("/api/climate/forecast")
+async def api_climate_forecast(
+    request: Request,
+    sensor_id: str | None = None,
+    hour: int = Query(default=12, ge=0, le=23),
+) -> dict[str, Any]:
+    repository = get_repository(request)
+    parsed_sensor_id = parse_sensor_id(sensor_id)
+    hourly_points = await asyncio.to_thread(repository.fetch_recent_aggregated, parsed_sensor_id, timedelta(days=30), 60)
+    payload = build_temperature_forecast(hourly_points, hour)
+    payload["sensor_id"] = parsed_sensor_id
+    return payload
 
 
 @app.get("/api/live")

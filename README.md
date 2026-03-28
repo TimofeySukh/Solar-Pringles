@@ -12,7 +12,10 @@ The current repository state is a migration-ready MVP: the server stack is alrea
 - Time-series storage plan with `InfluxDB` as the default recommendation for a low-memory server.
 - Phase-aware online training service with feature engineering and two-stage models every 15 minutes.
 - AI Insights for a light-only solar clock, sunset ETA, sunrise ETA, bias tracking, and confidence scoring.
-- Command-center dashboard with live volatility, delta, residuals, percentiles, SNR, and uptime.
+- Friendly overview homepage with simple current conditions and clear paths into detailed analytics.
+- Dedicated solar and temperature detail pages instead of one overloaded dashboard.
+- Command-center solar dashboard with live volatility, delta, residuals, percentiles, SNR, and uptime.
+- Temperature detail deck with climate charts and a weighted hourly estimate built from the last 30 days.
 - Lightweight FastAPI surface for history, live telemetry, AI insights, and analytics summaries.
 - Cloudflare Tunnel routing guidance that keeps the existing public site intact.
 
@@ -95,6 +98,8 @@ The backend now exposes:
 - `GET /api/live` as an SSE stream for real-time telemetry
 - `GET /api/insights` for online-training output and confidence scores
 - `GET /api/analytics` for last-hour percentiles, SNR, uptime, live volatility, delta, residual series, latest engineered features, and phase prediction
+- `GET /api/climate` for recent temperature and humidity analytics plus 30-day climate summaries
+- `GET /api/climate/forecast` for the weighted hourly temperature estimate
 - `GET /api/status` for a compact runtime summary
 
 Telemetry storage now accepts:
@@ -104,15 +109,11 @@ Telemetry storage now accepts:
 - `humidity_pct`
 - `adc_raw`
 
-The frontend is a single-file dashboard that proxies API traffic through Nginx and renders:
+The frontend now ships as a small static site that proxies API traffic through Nginx and renders:
 
-- a daily voltage area chart
-- a 60-second live volatility oscilloscope
-- a delta-per-second chart
-- an adaptive AI residuals chart
-- percentile, SNR, uptime, and confidence cards
-- a bias card for the last-hour solar-clock drift
-- an AI Insights panel for a light-only solar-clock estimate, sunset ETA, sunrise ETA, and ML phase context
+- a friendly homepage for non-technical visitors
+- a dedicated solar detail page with the full command-center analytics layout
+- a dedicated temperature detail page with climate trend charts and an hourly estimate selector
 
 The current ML stack includes:
 

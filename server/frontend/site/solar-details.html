@@ -1,0 +1,1191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sollar Panel Solar Detail</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap");
+
+      :root {
+        color-scheme: dark;
+        --bg: #05070a;
+        --bg-soft: #0b1118;
+        --panel: rgba(8, 16, 24, 0.9);
+        --panel-strong: rgba(6, 12, 18, 0.96);
+        --line: rgba(88, 255, 169, 0.16);
+        --grid: rgba(88, 255, 169, 0.08);
+        --text: #ebfff5;
+        --muted: #86a99b;
+        --voltage: #58ffa9;
+        --anomaly: #ff9e45;
+        --prediction: #6bd8ff;
+        --danger: #ff6d7c;
+        --shadow: rgba(14, 255, 177, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      body {
+        font-family: "JetBrains Mono", "Roboto Mono", monospace;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top right, rgba(107, 216, 255, 0.14), transparent 22%),
+          radial-gradient(circle at left 18%, rgba(88, 255, 169, 0.12), transparent 18%),
+          linear-gradient(180deg, rgba(255, 158, 69, 0.04), transparent 30%),
+          repeating-linear-gradient(
+            180deg,
+            rgba(88, 255, 169, 0.03) 0,
+            rgba(88, 255, 169, 0.03) 1px,
+            transparent 1px,
+            transparent 44px
+          ),
+          var(--bg);
+      }
+
+      .shell {
+        width: min(1600px, calc(100% - 24px));
+        margin: 0 auto;
+        padding: 20px 0 32px;
+      }
+
+      .frame {
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background:
+          linear-gradient(180deg, rgba(7, 14, 22, 0.96), rgba(5, 10, 14, 0.94)),
+          var(--panel);
+        box-shadow:
+          0 28px 90px rgba(0, 0, 0, 0.52),
+          inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+        overflow: hidden;
+      }
+
+      .topbar {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 18px;
+        align-items: flex-start;
+        padding: 24px 24px 14px;
+        border-bottom: 1px solid rgba(88, 255, 169, 0.08);
+      }
+
+      .eyebrow {
+        margin: 0 0 10px;
+        color: var(--voltage);
+        font-size: 0.76rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2.1rem, 4vw, 3.8rem);
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+
+      p {
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      .headline {
+        max-width: 760px;
+      }
+
+      .headline p {
+        margin: 12px 0 0;
+      }
+
+      .action-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .nav-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 0 18px;
+        border-radius: 999px;
+        border: 1px solid rgba(88, 255, 169, 0.28);
+        color: var(--text);
+        text-decoration: none;
+        background:
+          linear-gradient(180deg, rgba(88, 255, 169, 0.16), rgba(88, 255, 169, 0.06)),
+          rgba(6, 12, 18, 0.92);
+        box-shadow: 0 0 30px rgba(88, 255, 169, 0.08);
+        transition:
+          transform 160ms ease,
+          border-color 160ms ease,
+          box-shadow 160ms ease;
+      }
+
+      .nav-button:hover {
+        transform: translateY(-1px);
+        border-color: rgba(107, 216, 255, 0.42);
+        box-shadow: 0 0 32px rgba(107, 216, 255, 0.12);
+      }
+
+      .status-cluster {
+        display: grid;
+        gap: 10px;
+        min-width: min(380px, 100%);
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(88, 255, 169, 0.24);
+        background: rgba(88, 255, 169, 0.08);
+        width: fit-content;
+      }
+
+      .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: currentColor;
+        box-shadow: 0 0 18px currentColor;
+      }
+
+      .status-sunny {
+        color: var(--voltage);
+      }
+
+      .status-day {
+        color: var(--voltage);
+      }
+
+      .status-cloudy {
+        color: var(--prediction);
+      }
+
+      .status-night {
+        color: var(--prediction);
+      }
+
+      .status-sunrise,
+      .status-sunset {
+        color: var(--anomaly);
+      }
+
+      .status-twilight {
+        color: var(--anomaly);
+      }
+
+      .status-anomaly {
+        color: var(--danger);
+      }
+
+      .status-shade,
+      .status-no-data {
+        color: var(--danger);
+      }
+
+      .banner-row {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        padding: 18px 24px 10px;
+      }
+
+      .banner-card {
+        padding: 16px 18px;
+        border-radius: 20px;
+        border: 1px solid rgba(88, 255, 169, 0.12);
+        background:
+          linear-gradient(180deg, rgba(9, 18, 27, 0.92), rgba(5, 11, 16, 0.94));
+        min-height: 120px;
+      }
+
+      .card-label {
+        color: var(--muted);
+        font-size: 0.78rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .card-value {
+        margin-top: 12px;
+        font-size: clamp(1.2rem, 2.6vw, 2.6rem);
+        font-weight: 700;
+        letter-spacing: -0.05em;
+      }
+
+      .card-meta {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 0.85rem;
+        line-height: 1.55;
+      }
+
+      .command-grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: minmax(0, 1.45fr) minmax(0, 1.05fr) minmax(320px, 0.8fr);
+        padding: 10px 24px 24px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background:
+          linear-gradient(180deg, rgba(8, 16, 24, 0.94), rgba(4, 9, 14, 0.96));
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.018);
+        padding: 18px;
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .panel.main-trend {
+        grid-column: span 2;
+        min-height: 420px;
+      }
+
+      .panel.span-2 {
+        grid-column: span 2;
+      }
+
+      .panel-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: flex-start;
+        margin-bottom: 16px;
+      }
+
+      .panel-title {
+        margin: 0;
+        font-size: 1rem;
+        letter-spacing: 0.02em;
+      }
+
+      .panel-subtitle {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .panel-value {
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .chart-box {
+        position: relative;
+        height: 280px;
+        min-height: 280px;
+        max-height: 280px;
+      }
+
+      .panel.main-trend .chart-box,
+      .panel.span-2 .chart-box {
+        height: 360px;
+        min-height: 360px;
+        max-height: 360px;
+      }
+
+      .chart-box canvas {
+        display: block;
+        width: 100% !important;
+        height: 100% !important;
+      }
+
+      .grid-two {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .mini-tile {
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid rgba(88, 255, 169, 0.1);
+        background: rgba(5, 13, 18, 0.78);
+      }
+
+      .mini-value {
+        margin-top: 8px;
+        font-size: 1.5rem;
+        font-weight: 700;
+      }
+
+      .prediction-tone {
+        color: var(--prediction);
+      }
+
+      .anomaly-tone {
+        color: var(--anomaly);
+      }
+
+      .voltage-tone {
+        color: var(--voltage);
+      }
+
+      .danger-tone {
+        color: var(--danger);
+      }
+
+      .footer-strip {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 24px 20px;
+        border-top: 1px solid rgba(88, 255, 169, 0.08);
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      .footer-led {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--voltage);
+        box-shadow: 0 0 18px rgba(88, 255, 169, 0.55);
+      }
+
+      code {
+        color: var(--prediction);
+      }
+
+      @media (max-width: 1280px) {
+        .banner-row {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .command-grid {
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        }
+
+        .panel.main-trend,
+        .panel.span-2 {
+          grid-column: span 2;
+        }
+      }
+
+      @media (max-width: 860px) {
+        .shell {
+          width: min(100%, calc(100% - 16px));
+        }
+
+        .banner-row,
+        .command-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .panel.main-trend,
+        .panel.span-2 {
+          grid-column: span 1;
+        }
+
+        .grid-two {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <section class="frame">
+        <header class="topbar">
+          <div class="headline">
+            <p class="eyebrow">Solar Command Center</p>
+            <h1>Solar detail deck</h1>
+            <p>
+              Copenhagen-time telemetry, live signal quality, AI drift, and
+              operational stats in a single command-center layout.
+            </p>
+            <div class="action-row">
+              <a class="nav-button" href="/">Back to overview</a>
+              <a class="nav-button" href="/temperature-details.html">Temperature details</a>
+              <a class="nav-button" href="/solar-farm.html">Our solarpanel farm</a>
+            </div>
+          </div>
+
+          <div class="status-cluster">
+            <div class="status-pill status-no-data" id="statusPill">
+              <span class="status-dot"></span>
+              <span id="statusLabel">No data</span>
+            </div>
+            <div class="card-meta" id="lastUpdate">Waiting for the first packet.</div>
+            <div class="card-meta" id="connectionState">Connecting to the event stream.</div>
+          </div>
+        </header>
+
+        <section class="banner-row">
+          <article class="banner-card">
+            <div class="card-label">Current Voltage</div>
+            <div class="card-value voltage-tone" id="currentVoltage">--.-- V</div>
+            <div class="card-meta" id="currentVoltageMeta">Awaiting the latest point.</div>
+          </article>
+
+          <article class="banner-card">
+            <div class="card-label">P50 / P95 / P99</div>
+            <div class="card-value" id="percentilesCard">-- / -- / --</div>
+            <div class="card-meta">Last-hour effective voltage percentiles.</div>
+          </article>
+
+          <article class="banner-card">
+            <div class="card-label">Signal to Noise Ratio</div>
+            <div class="card-value prediction-tone" id="snrValue">-- dB</div>
+            <div class="card-meta">Computed from raw versus smoothed signal power.</div>
+          </article>
+
+          <article class="banner-card">
+            <div class="card-label">Edge Uptime</div>
+            <div class="card-value" id="uptimeValue">Unavailable</div>
+            <div class="card-meta">Reported directly by the edge node payload.</div>
+          </article>
+
+          <article class="banner-card">
+            <div class="card-label">AI Confidence</div>
+            <div class="card-value prediction-tone" id="confidenceValue">Unavailable</div>
+            <div class="card-meta" id="confidenceMeta">Waiting for the latest model snapshot.</div>
+          </article>
+
+          <article class="banner-card">
+            <div class="card-label">AI Bias</div>
+            <div class="card-value danger-tone" id="biasValue">Unavailable</div>
+            <div class="card-meta" id="biasMeta">Average solar-clock drift versus system time over the last hour.</div>
+          </article>
+        </section>
+
+        <section class="command-grid">
+          <article class="panel main-trend">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Main Trend</p>
+                <h2 class="panel-title">Daily Voltage Envelope</h2>
+                <p class="panel-subtitle">Area chart of today’s smoothed voltage with raw overlay.</p>
+              </div>
+              <div class="panel-value" id="dayRangeMeta">Loading day history...</div>
+            </div>
+            <div class="chart-box">
+              <canvas id="trendChart"></canvas>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">AI Insights</p>
+                <h2 class="panel-title">Model Outlook</h2>
+                <p class="panel-subtitle">Live regression outputs from the online training engine.</p>
+              </div>
+            </div>
+            <div class="grid-two">
+              <div class="mini-tile">
+                <div class="card-label">AI Solar Clock</div>
+                <div class="mini-value prediction-tone" id="aiTimeEstimate">--:--</div>
+                <div class="card-meta" id="aiTimeMeta">Guessing time based purely on light levels.</div>
+              </div>
+              <div class="mini-tile">
+                <div class="card-label">Estimated Sunset</div>
+                <div class="mini-value anomaly-tone" id="sunsetEstimate">Unavailable</div>
+                <div class="card-meta" id="sunsetMeta">Sunset ETA is warming up.</div>
+              </div>
+              <div class="mini-tile">
+                <div class="card-label">Estimated Sunrise</div>
+                <div class="mini-value prediction-tone" id="sunriseEstimate">Unavailable</div>
+                <div class="card-meta" id="sunriseMeta">Sunrise ETA is warming up.</div>
+              </div>
+              <div class="mini-tile">
+                <div class="card-label">Residual Drift</div>
+                <div class="mini-value danger-tone" id="residualNow">-- min</div>
+                <div class="card-meta" id="residualMeta">Difference between system time and the AI solar clock.</div>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Live Volatility</p>
+                <h2 class="panel-title">60-Second Oscilloscope</h2>
+                <p class="panel-subtitle">Raw voltage stream for immediate shadow and flicker detection.</p>
+              </div>
+              <div class="panel-value" id="liveWindowMeta">Last 60 seconds</div>
+            </div>
+            <div class="chart-box">
+              <canvas id="volatilityChart"></canvas>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Rate of Change</p>
+                <h2 class="panel-title">Delta V / Second</h2>
+                <p class="panel-subtitle">Fast slope view for catching cloud edges and abrupt dips.</p>
+              </div>
+              <div class="panel-value" id="deltaMeta">Derivative over the live window</div>
+            </div>
+            <div class="chart-box">
+              <canvas id="deltaChart"></canvas>
+            </div>
+          </article>
+
+          <article class="panel span-2">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">AI Prediction Error</p>
+                <h2 class="panel-title">Residuals Timeline</h2>
+                <p class="panel-subtitle">Signed drift between actual local time and the AI solar clock.</p>
+              </div>
+              <div class="panel-value" id="residualSeriesMeta">Recent training cycles</div>
+            </div>
+            <div class="chart-box">
+              <canvas id="residualChart"></canvas>
+            </div>
+          </article>
+        </section>
+
+        <footer class="footer-strip">
+          <span class="footer-led"></span>
+          <span id="footerNote">Command Center synchronized to Europe/Copenhagen without rewriting UTC history.</span>
+        </footer>
+      </section>
+    </div>
+
+    <script>
+      const dashboardTimezone = "Europe/Copenhagen";
+      const historyEndpoint = "/api/history";
+      const liveEndpoint = "/api/live";
+      const insightsEndpoint = "/api/insights";
+      const analyticsEndpoint = "/api/analytics";
+      const analyticsRefreshMs = 15_000;
+      const insightsRefreshMs = 60_000;
+      const historyRefreshMs = 120_000;
+
+      const state = {
+        lastLiveTimestamp: null,
+        livePoints: [],
+        liveSource: null,
+        analyticsTimerId: null,
+        insightsTimerId: null,
+        historyTimerId: null,
+      };
+
+      const dom = {
+        statusPill: document.getElementById("statusPill"),
+        statusLabel: document.getElementById("statusLabel"),
+        lastUpdate: document.getElementById("lastUpdate"),
+        connectionState: document.getElementById("connectionState"),
+        currentVoltage: document.getElementById("currentVoltage"),
+        currentVoltageMeta: document.getElementById("currentVoltageMeta"),
+        percentilesCard: document.getElementById("percentilesCard"),
+        snrValue: document.getElementById("snrValue"),
+        uptimeValue: document.getElementById("uptimeValue"),
+        confidenceValue: document.getElementById("confidenceValue"),
+        confidenceMeta: document.getElementById("confidenceMeta"),
+        biasValue: document.getElementById("biasValue"),
+        biasMeta: document.getElementById("biasMeta"),
+        dayRangeMeta: document.getElementById("dayRangeMeta"),
+        liveWindowMeta: document.getElementById("liveWindowMeta"),
+        deltaMeta: document.getElementById("deltaMeta"),
+        residualSeriesMeta: document.getElementById("residualSeriesMeta"),
+        aiTimeEstimate: document.getElementById("aiTimeEstimate"),
+        aiTimeMeta: document.getElementById("aiTimeMeta"),
+        sunsetEstimate: document.getElementById("sunsetEstimate"),
+        sunsetMeta: document.getElementById("sunsetMeta"),
+        sunriseEstimate: document.getElementById("sunriseEstimate"),
+        sunriseMeta: document.getElementById("sunriseMeta"),
+        residualNow: document.getElementById("residualNow"),
+        residualMeta: document.getElementById("residualMeta"),
+        footerNote: document.getElementById("footerNote"),
+      };
+
+      function createGradient(context, topColor, bottomColor) {
+        const gradient = context.createLinearGradient(0, 0, 0, 320);
+        gradient.addColorStop(0, topColor);
+        gradient.addColorStop(1, bottomColor);
+        return gradient;
+      }
+
+      function buildChart(canvasId, configFactory) {
+        const context = document.getElementById(canvasId).getContext("2d");
+        return new Chart(context, configFactory(context));
+      }
+
+      const VOLTAGE_AXIS = {
+        min: 0,
+        max: 0.70,
+        grace: 0,
+      };
+
+      const DELTA_AXIS = {
+        min: -0.02,
+        max: 0.02,
+        grace: 0,
+      };
+
+      const RESIDUAL_AXIS = {
+        min: -10,
+        max: 10,
+        grace: 0,
+      };
+
+      const trendChart = buildChart("trendChart", (context) => ({
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: "Smoothed Voltage",
+              data: [],
+              borderColor: "#58ffa9",
+              backgroundColor: createGradient(context, "rgba(88, 255, 169, 0.42)", "rgba(88, 255, 169, 0.02)"),
+              borderWidth: 2.4,
+              tension: 0.3,
+              pointRadius: 0,
+              fill: true,
+            },
+            {
+              label: "Raw Voltage",
+              data: [],
+              borderColor: "rgba(107, 216, 255, 0.95)",
+              borderWidth: 1.1,
+              tension: 0.2,
+              pointRadius: 0,
+              fill: false,
+              borderDash: [5, 6],
+            },
+          ],
+        },
+        options: baseChartOptions({
+          yLabelFormatter: (value) => `${Number(value).toFixed(2)} V`,
+          yAxis: VOLTAGE_AXIS,
+        }),
+      }));
+
+      const volatilityChart = buildChart("volatilityChart", (context) => ({
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: "Raw Voltage",
+              data: [],
+              borderColor: "#58ffa9",
+              backgroundColor: createGradient(context, "rgba(88, 255, 169, 0.28)", "rgba(88, 255, 169, 0.01)"),
+              pointRadius: 0,
+              borderWidth: 1.8,
+              fill: true,
+              tension: 0.12,
+            },
+          ],
+        },
+        options: baseChartOptions({
+          yLabelFormatter: (value) => `${Number(value).toFixed(3)} V`,
+          maxTicksLimit: 8,
+          yAxis: VOLTAGE_AXIS,
+        }),
+      }));
+
+      const deltaChart = buildChart("deltaChart", () => ({
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: "Delta V / s",
+              data: [],
+              borderColor: "#ff9e45",
+              pointRadius: 0,
+              borderWidth: 1.8,
+              fill: false,
+              tension: 0.1,
+            },
+          ],
+        },
+        options: baseChartOptions({
+          yLabelFormatter: (value) => `${Number(value).toFixed(4)} V/s`,
+          maxTicksLimit: 8,
+          yAxis: DELTA_AXIS,
+        }),
+      }));
+
+      const residualChart = buildChart("residualChart", (context) => ({
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: "Residual Minutes",
+              data: [],
+              borderColor: "#6bd8ff",
+              backgroundColor: createGradient(context, "rgba(107, 216, 255, 0.22)", "rgba(107, 216, 255, 0.02)"),
+              pointRadius: 2,
+              pointHoverRadius: 4,
+              borderWidth: 1.7,
+              fill: true,
+              tension: 0.16,
+            },
+          ],
+        },
+        options: baseChartOptions({
+          yLabelFormatter: (value) => `${Number(value).toFixed(1)} min`,
+          maxTicksLimit: 10,
+          yAxis: RESIDUAL_AXIS,
+        }),
+      }));
+
+      function baseChartOptions({ yLabelFormatter, maxTicksLimit = 10, yAxis = {} }) {
+        return {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          normalized: true,
+          resizeDelay: 150,
+          interaction: {
+            intersect: false,
+            mode: "index",
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: "#ebfff5",
+                usePointStyle: true,
+              },
+            },
+            tooltip: {
+              backgroundColor: "rgba(3, 9, 13, 0.94)",
+              borderColor: "rgba(88, 255, 169, 0.22)",
+              borderWidth: 1,
+              titleColor: "#ebfff5",
+              bodyColor: "#ebfff5",
+              displayColors: true,
+            },
+          },
+          scales: {
+            x: {
+              offset: false,
+              bounds: "ticks",
+              ticks: {
+                color: "#86a99b",
+                maxTicksLimit,
+                autoSkip: true,
+              },
+              grid: {
+                color: "rgba(88, 255, 169, 0.06)",
+              },
+            },
+            y: {
+              min: yAxis.min,
+              max: yAxis.max,
+              grace: yAxis.grace ?? 0,
+              ticks: {
+                color: "#86a99b",
+                callback: yLabelFormatter,
+                maxTicksLimit: 6,
+              },
+              grid: {
+                color: "rgba(88, 255, 169, 0.08)",
+              },
+            },
+          },
+          elements: {
+            line: {
+              capBezierPoints: true,
+            },
+            point: {
+              radius: 0,
+            },
+          },
+        };
+      }
+
+      function formatClock(timestamp) {
+        const date = new Date(timestamp);
+        if (Number.isNaN(date.getTime())) {
+          return "Unknown";
+        }
+        return date.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          timeZone: dashboardTimezone,
+        });
+      }
+
+      function formatDateTime(timestamp) {
+        const date = new Date(timestamp);
+        if (Number.isNaN(date.getTime())) {
+          return "Unknown";
+        }
+        return date.toLocaleString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          month: "short",
+          day: "2-digit",
+          timeZone: dashboardTimezone,
+        });
+      }
+
+      function formatVoltageValue(value) {
+        return typeof value === "number" ? `${value.toFixed(3)} V` : "--.-- V";
+      }
+
+      function formatUptime(seconds) {
+        if (typeof seconds !== "number") {
+          return "Unavailable";
+        }
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        if (days > 0) {
+          return `${days}d ${hours}h ${minutes}m`;
+        }
+        if (hours > 0) {
+          return `${hours}h ${minutes}m`;
+        }
+        return `${minutes}m`;
+      }
+
+      function formatSignedMinutes(value) {
+        if (typeof value !== "number" || Number.isNaN(value)) {
+          return "Unavailable";
+        }
+        return `${value >= 0 ? "+" : ""}${value.toFixed(2)} min`;
+      }
+
+      function statusClass(status) {
+        return `status-${status.toLowerCase().replace(/\s+/g, "-")}`;
+      }
+
+      function classifyStatus(voltage) {
+        if (typeof voltage !== "number") {
+          return "No data";
+        }
+        if (voltage >= 0.34) {
+          return "Sunny";
+        }
+        if (voltage >= 0.2) {
+          return "Cloudy";
+        }
+        if (voltage >= 0.08) {
+          return "Twilight";
+        }
+        return "Shade";
+      }
+
+      function updateStatus(point, explicitStatus) {
+        const effectiveVoltage = point
+          ? point.smoothed_voltage_last ?? point.smoothed_voltage ?? point.raw_mean_5s ?? point.raw_voltage_last ?? point.raw_voltage
+          : null;
+        const status = explicitStatus || classifyStatus(effectiveVoltage);
+        const rawLast = point?.raw_voltage_last ?? point?.raw_voltage;
+        const smoothedLast = point?.smoothed_voltage_last ?? point?.smoothed_voltage;
+        const rawMeanWindow = point?.raw_mean_5s;
+        const rawMinWindow = point?.raw_min_5s;
+        const rawMaxWindow = point?.raw_max_5s;
+        dom.statusLabel.textContent = status;
+        dom.statusPill.className = `status-pill ${statusClass(status)}`;
+        dom.currentVoltage.textContent = point ? formatVoltageValue(effectiveVoltage) : "--.-- V";
+        dom.currentVoltageMeta.textContent = point
+          ? `Raw last ${rawLast?.toFixed(3) ?? "--.--"} V, smoothed ${smoothedLast?.toFixed(3) ?? "--.--"} V, 1 s window ${rawMinWindow?.toFixed(3) ?? "--.--"}..${rawMaxWindow?.toFixed(3) ?? "--.--"} V, mean ${rawMeanWindow?.toFixed(3) ?? "--.--"} V`
+          : "Waiting for the latest point from InfluxDB.";
+        dom.lastUpdate.textContent = point
+          ? `Last sample ${formatClock(point.timestamp_local ?? point.timestamp)} Copenhagen time`
+          : "Waiting for the first packet.";
+      }
+
+      function updateTrendChart(points) {
+        trendChart.data.labels = points.map((point) => formatClock(point.timestamp_local ?? point.timestamp));
+        trendChart.data.datasets[0].data = points.map((point) => point.smoothed_voltage ?? point.raw_voltage ?? null);
+        trendChart.data.datasets[1].data = points.map((point) => point.raw_voltage ?? null);
+        trendChart.update("none");
+      }
+
+      function updateVolatilityChart(points) {
+        volatilityChart.data.labels = points.map((point) => formatClock(point.timestamp_local ?? point.timestamp));
+        volatilityChart.data.datasets[0].data = points.map((point) => point.raw_voltage ?? null);
+        volatilityChart.update("none");
+      }
+
+      function updateDeltaChart(points) {
+        deltaChart.data.labels = points.map((point) => formatClock(point.timestamp_local ?? point.timestamp));
+        deltaChart.data.datasets[0].data = points.map((point) => point.delta_v_per_second ?? null);
+        deltaChart.update("none");
+      }
+
+      function updateResidualChart(points) {
+        const residualValues = points
+          .map((point) => point.residual_minutes)
+          .filter((value) => typeof value === "number" && Number.isFinite(value));
+        const peakResidual = residualValues.length ? Math.max(...residualValues.map((value) => Math.abs(value))) : 0;
+        const residualBound = Math.max(5, Math.ceil((peakResidual * 1.35 + 1) * 2) / 2);
+        residualChart.options.scales.y.min = -residualBound;
+        residualChart.options.scales.y.max = residualBound;
+        residualChart.data.labels = points.map((point) => formatDateTime(point.timestamp_local ?? point.timestamp));
+        residualChart.data.datasets[0].data = points.map((point) => point.residual_minutes ?? null);
+        residualChart.update("none");
+      }
+
+      function updateAnalytics(analytics) {
+        dom.percentilesCard.textContent = analytics.stats.p50_voltage !== null
+          ? `${analytics.stats.p50_voltage.toFixed(3)} / ${analytics.stats.p95_voltage.toFixed(3)} / ${analytics.stats.p99_voltage.toFixed(3)}`
+          : "-- / -- / --";
+        dom.snrValue.textContent = analytics.stats.snr_db !== null ? `${analytics.stats.snr_db.toFixed(2)} dB` : "Unavailable";
+        dom.uptimeValue.textContent = formatUptime(analytics.stats.uptime_seconds);
+        dom.biasValue.textContent = formatSignedMinutes(analytics.stats.bias_minutes_last_hour);
+        dom.biasMeta.textContent = analytics.stats.bias_sample_count_last_hour > 0
+          ? `Average solar-clock drift over the last hour from ${analytics.stats.bias_sample_count_last_hour} residual samples.`
+          : "Bias will appear after enough recent training cycles.";
+        dom.liveWindowMeta.textContent = `Last ${analytics.volatility_window_seconds} seconds`;
+        dom.deltaMeta.textContent = `${analytics.volatility_points.length} live points in the rolling window`;
+        dom.residualSeriesMeta.textContent = `${analytics.ai_residuals.length} residual samples from recent training cycles`;
+        updateVolatilityChart(analytics.volatility_points);
+        updateDeltaChart(analytics.delta_points);
+        updateResidualChart(analytics.ai_residuals);
+        if (analytics.latest) {
+          updateStatus(analytics.latest, analytics.phase_prediction?.predicted_phase || analytics.condition);
+        }
+      }
+
+      function updateInsights(insights) {
+        if (!insights || !insights.available) {
+          dom.aiTimeEstimate.textContent = "--:--";
+          dom.aiTimeMeta.textContent = "Guessing time based purely on light levels. ML engine has not emitted a snapshot yet.";
+          dom.sunsetEstimate.textContent = "Unavailable";
+          dom.sunsetMeta.textContent = "Sunset ETA will appear after the next stable training cycle.";
+          dom.sunriseEstimate.textContent = "Unavailable";
+          dom.sunriseMeta.textContent = "Sunrise ETA will appear after enough day-night transitions.";
+          dom.confidenceValue.textContent = "Unavailable";
+          dom.confidenceMeta.textContent = "Confidence is derived from holdout error.";
+          dom.residualNow.textContent = "-- min";
+          dom.residualMeta.textContent = "Residual drift will appear with the next trained solar-clock model.";
+          return;
+        }
+
+        dom.aiTimeEstimate.textContent = insights.ai_time_estimate?.display_time || "--:--";
+        dom.aiTimeMeta.textContent = insights.ai_time_estimate?.mae_minutes !== null
+          ? `Guessing time based purely on light levels. MAE ${insights.ai_time_estimate.mae_minutes} min, R² ${insights.ai_time_estimate.r2_score}`
+          : "Guessing time based purely on light levels. The solar-clock model is warming up.";
+        dom.sunsetEstimate.textContent = insights.estimated_sunset?.display_eta || "Unavailable";
+        dom.sunsetMeta.textContent = insights.estimated_sunset?.mae_minutes !== null
+          ? `MAE ${insights.estimated_sunset.mae_minutes} min, confidence ${insights.estimated_sunset.confidence}.`
+          : "Sunset ETA is warming up.";
+        dom.sunriseEstimate.textContent = insights.estimated_sunrise?.display_eta || "Unavailable";
+        dom.sunriseMeta.textContent = insights.estimated_sunrise?.mae_minutes !== null
+          ? `MAE ${insights.estimated_sunrise.mae_minutes} min, confidence ${insights.estimated_sunrise.confidence}.`
+          : "Sunrise ETA is warming up.";
+        dom.confidenceValue.textContent = insights.confidence_level || "Unavailable";
+        dom.confidenceMeta.textContent = insights.latest_point
+          ? `Phase ${insights.phase_classifier?.predicted_phase || "Unavailable"} at ${formatDateTime(insights.latest_point.timestamp_local || insights.latest_point.timestamp)}.`
+          : "Confidence is derived from holdout error.";
+
+        if (insights.residual_minutes !== null && insights.residual_minutes !== undefined) {
+          dom.residualNow.textContent = `${insights.residual_minutes.toFixed(2)} min`;
+          dom.residualMeta.textContent = "Signed drift between the AI solar clock and system time.";
+        } else {
+          dom.residualNow.textContent = "Unavailable";
+          dom.residualMeta.textContent = "Residual drift will appear after the next trained solar-clock model.";
+        }
+      }
+
+      function appendLivePoint(point) {
+        if (!point || !point.timestamp || state.lastLiveTimestamp === point.timestamp) {
+          return;
+        }
+
+        state.lastLiveTimestamp = point.timestamp;
+        state.livePoints.push(point);
+        const latestDate = new Date(point.timestamp);
+        state.livePoints = state.livePoints.filter((candidate) => latestDate - new Date(candidate.timestamp) <= 60_000);
+
+        const deltaPoints = state.livePoints.map((candidate, index) => {
+          if (index === 0) {
+            return {
+              timestamp: candidate.timestamp,
+              timestamp_local: candidate.timestamp_local,
+              delta_v_per_second: 0,
+            };
+          }
+
+          const previous = state.livePoints[index - 1];
+          const deltaSeconds = (new Date(candidate.timestamp) - new Date(previous.timestamp)) / 1000;
+          const delta = deltaSeconds > 0
+            ? ((candidate.raw_voltage ?? 0) - (previous.raw_voltage ?? 0)) / deltaSeconds
+            : 0;
+          return {
+            timestamp: candidate.timestamp,
+            timestamp_local: candidate.timestamp_local,
+            delta_v_per_second: Number(delta.toFixed(6)),
+          };
+        });
+
+        updateVolatilityChart(state.livePoints);
+        updateDeltaChart(deltaPoints);
+        updateStatus(point, point.predicted_phase || point.condition);
+      }
+
+      async function loadHistory() {
+        const response = await fetch(historyEndpoint, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`History request failed with status ${response.status}`);
+        }
+        const payload = await response.json();
+        updateTrendChart(payload.points);
+        dom.dayRangeMeta.textContent = `${payload.day} · ${payload.points.length} aggregated points · ${payload.timezone}`;
+        if (payload.latest) {
+          updateStatus(payload.latest, payload.condition);
+        }
+      }
+
+      async function loadAnalytics() {
+        const response = await fetch(analyticsEndpoint, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`Analytics request failed with status ${response.status}`);
+        }
+        const payload = await response.json();
+        state.livePoints = payload.volatility_points ?? [];
+        updateAnalytics(payload);
+      }
+
+      async function loadInsights() {
+        const response = await fetch(insightsEndpoint, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`Insights request failed with status ${response.status}`);
+        }
+        const payload = await response.json();
+        updateInsights(payload);
+      }
+
+      function connectLive() {
+        if (state.liveSource || document.hidden) {
+          return;
+        }
+
+        const source = new EventSource(liveEndpoint);
+        state.liveSource = source;
+
+        source.addEventListener("open", () => {
+          dom.connectionState.textContent = "SSE stream connected";
+        });
+
+        source.addEventListener("status", (event) => {
+          const payload = JSON.parse(event.data);
+          dom.connectionState.textContent = `Streaming ${payload.sensor_id} in ${dashboardTimezone}`;
+        });
+
+        source.addEventListener("telemetry", (event) => {
+          const payload = JSON.parse(event.data);
+          appendLivePoint(payload);
+          dom.footerNote.textContent = `Live packet received at ${formatClock(payload.timestamp_local ?? payload.timestamp)}.`;
+        });
+
+        source.addEventListener("stream-error", (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            dom.connectionState.textContent = payload.message || "Live stream error";
+          } catch (_error) {
+            dom.connectionState.textContent = "Live stream error";
+          }
+        });
+
+        source.onerror = () => {
+          dom.connectionState.textContent = "SSE reconnecting...";
+        };
+      }
+
+      function disconnectLive(reason) {
+        if (state.liveSource) {
+          state.liveSource.close();
+          state.liveSource = null;
+        }
+        if (reason) {
+          dom.connectionState.textContent = reason;
+        }
+      }
+
+      function startPolling() {
+        if (state.analyticsTimerId === null) {
+          state.analyticsTimerId = window.setInterval(() => {
+            if (document.hidden) {
+              return;
+            }
+            loadAnalytics().catch((error) => {
+              dom.connectionState.textContent = error.message;
+            });
+          }, analyticsRefreshMs);
+        }
+
+        if (state.insightsTimerId === null) {
+          state.insightsTimerId = window.setInterval(() => {
+            if (document.hidden) {
+              return;
+            }
+            loadInsights().catch((error) => {
+              dom.confidenceMeta.textContent = error.message;
+            });
+          }, insightsRefreshMs);
+        }
+
+        if (state.historyTimerId === null) {
+          state.historyTimerId = window.setInterval(() => {
+            if (document.hidden) {
+              return;
+            }
+            loadHistory().catch((error) => {
+              dom.dayRangeMeta.textContent = error.message;
+            });
+          }, historyRefreshMs);
+        }
+      }
+
+      function handleVisibilityChange() {
+        if (document.hidden) {
+          disconnectLive("Dashboard paused in background");
+          return;
+        }
+
+        connectLive();
+        loadAnalytics().catch((error) => {
+          dom.connectionState.textContent = error.message;
+        });
+        loadInsights().catch((error) => {
+          dom.confidenceMeta.textContent = error.message;
+        });
+        loadHistory().catch((error) => {
+          dom.dayRangeMeta.textContent = error.message;
+        });
+      }
+
+      async function boot() {
+        try {
+          await loadHistory();
+          await loadAnalytics();
+          await loadInsights();
+        } catch (error) {
+          dom.connectionState.textContent = error.message;
+        }
+
+        connectLive();
+        startPolling();
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+      }
+
+      boot();
+    </script>
+  </body>
+</html>

@@ -225,6 +225,8 @@ The current scaffold now includes:
 - `GET /api/live`
 - `GET /api/insights`
 - `GET /api/analytics`
+- `GET /api/climate`
+- `GET /api/climate/forecast`
 - `GET /api/status`
 - `GET /healthz`
 
@@ -235,6 +237,10 @@ The current scaffold now includes:
 `/api/insights` serves the latest ML snapshot written by `ml_engine`.
 
 `/api/analytics` returns last-hour percentiles, SNR, edge uptime, a rolling raw-voltage window, delta-per-second points, recent AI residual history, latest engineered features, and phase prediction output.
+
+`/api/climate` returns recent temperature and humidity series plus 30-day daily and hourly climate summaries.
+
+`/api/climate/forecast` returns a recency-weighted hourly temperature estimate built from the last 30 days of the same local hour.
 
 ### Timezone Handling
 
@@ -260,21 +266,22 @@ Requirements:
 - live updates
 - status badge driven by heuristics for now
 
-### Implemented Command-Center Frontend
+### Implemented Frontend Structure
 
-The current frontend is intentionally kept in a single `index.html` file for simple deployment.
+The frontend is now a small static site rather than one overloaded page.
 
 It includes:
 
+- `index.html` as a friendly overview page for non-technical visitors
+- `solar-details.html` for the full solar command-center analytics layout
+- `temperature-details.html` for climate charts and hourly temperature estimates
 - same-origin API access through Nginx proxying to the backend container
 - a daily voltage area chart with smoothed and raw overlays
 - a 60-second raw-voltage oscilloscope for volatility tracking
 - a delta-per-second chart for shadow and cloud-edge detection
 - an AI residuals chart fed from recent model snapshots
-- current voltage, percentile, SNR, uptime, and confidence cards
-- a live connection state indicator
-- a phase-aware status badge fed by the latest ML snapshot when available
-- an AI Insights panel for predicted local time, sunset ETA, sunrise ETA, and confidence level
+- current voltage, percentile, SNR, uptime, and confidence cards on the solar detail page
+- temperature, humidity, daily range, and hourly-estimate views on the climate detail page
 
 Suggested status labels:
 
