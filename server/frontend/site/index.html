@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Sollar Panel Overview</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <style>
       @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap");
 
@@ -169,6 +170,10 @@
         border-top: 1px solid rgba(88, 255, 169, 0.08);
       }
 
+      .span-2 {
+        grid-column: span 2;
+      }
+
       .stat-card {
         padding: 18px;
       }
@@ -215,6 +220,50 @@
         font-size: 1.6rem;
       }
 
+      .forecast-box {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: minmax(220px, 0.55fr) minmax(0, 1fr);
+        align-items: stretch;
+        margin-top: 16px;
+      }
+
+      .forecast-controls {
+        border: 1px solid rgba(88, 255, 169, 0.12);
+        border-radius: 18px;
+        padding: 16px;
+        background: rgba(5, 13, 18, 0.78);
+      }
+
+      select {
+        width: 100%;
+        margin-top: 10px;
+        min-height: 44px;
+        border-radius: 14px;
+        border: 1px solid rgba(88, 255, 169, 0.24);
+        background: rgba(4, 10, 15, 0.96);
+        color: var(--text);
+        padding: 0 12px;
+        font: inherit;
+      }
+
+      .forecast-value {
+        margin-top: 14px;
+        font-size: 2.2rem;
+        color: var(--anomaly);
+        font-weight: 700;
+      }
+
+      .chart-box {
+        position: relative;
+        height: 300px;
+      }
+
+      .chart-box canvas {
+        width: 100% !important;
+        height: 100% !important;
+      }
+
       .footer {
         display: flex;
         gap: 10px;
@@ -239,6 +288,14 @@
         .section-grid {
           grid-template-columns: 1fr;
         }
+
+        .span-2 {
+          grid-column: span 1;
+        }
+
+        .forecast-box {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
@@ -248,14 +305,12 @@
         <section class="hero">
           <div class="hero-copy">
             <p class="eyebrow">Sollar Panel</p>
-            <h1>Friendly overview for a tiny solar node.</h1>
+            <h1>Overview for a solar node.</h1>
             <p>
               This page keeps the story simple: what the node sees right now, how warm it is,
               and where to click if you want the deep analyst view.
             </p>
             <div class="actions">
-              <a class="nav-button" href="/solar-details.html">See more about the sun</a>
-              <a class="nav-button" href="/temperature-details.html">See more about temperature</a>
               <a class="nav-button" href="/solar-farm.html">Our solarpanel farm</a>
             </div>
           </div>
@@ -317,6 +372,26 @@
               <a class="nav-button" href="/temperature-details.html">Open temperature analytics</a>
             </div>
           </article>
+
+          <article class="section-card span-2">
+            <p class="eyebrow">Hour Picker</p>
+            <h2>Weighted hourly temperature estimate</h2>
+            <p>
+              Pick a local hour and compare it against the last 30 days. The estimate uses
+              recency-weighted neighbors, so recent days influence the result more heavily.
+            </p>
+            <div class="forecast-box">
+              <div class="forecast-controls">
+                <label class="card-label" for="hourSelect">Select local hour</label>
+                <select id="hourSelect"></select>
+                <div class="forecast-value" id="forecastValue">--.- °C</div>
+                <div class="card-meta" id="forecastMeta">Choose an hour to estimate its temperature.</div>
+              </div>
+              <div class="chart-box">
+                <canvas id="hourlyProfileChart"></canvas>
+              </div>
+            </div>
+          </article>
         </section>
 
         <footer class="footer">
@@ -330,6 +405,8 @@
       const statusEndpoint = "/api/status";
       const insightsEndpoint = "/api/insights";
       const analyticsEndpoint = "/api/analytics";
+      const climateEndpoint = "/api/climate";
+      const forecastEndpoint = "/api/climate/forecast";
 
       const dom = {
         statusPill: document.getElementById("statusPill"),
@@ -344,7 +421,71 @@
         solarClockMeta: document.getElementById("solarClockMeta"),
         uptimeValue: document.getElementById("uptimeValue"),
         footerText: document.getElementById("footerText"),
+        hourSelect: document.getElementById("hourSelect"),
+        forecastValue: document.getElementById("forecastValue"),
+        forecastMeta: document.getElementById("forecastMeta"),
       };
+
+      function createGradient(context, topColor, bottomColor) {
+        const gradient = context.createLinearGradient(0, 0, 0, 320);
+        gradient.addColorStop(0, topColor);
+        gradient.addColorStop(1, bottomColor);
+        return gradient;
+      }
+
+      const hourlyProfileChart = new Chart(document.getElementById("hourlyProfileChart").getContext("2d"), {
+        type: "bar",
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: "Hourly mean temperature",
+              data: [],
+              backgroundColor: createGradient(
+                document.getElementById("hourlyProfileChart").getContext("2d"),
+                "rgba(255, 158, 69, 0.8)",
+                "rgba(107, 216, 255, 0.28)"
+              ),
+              borderColor: "#ff9e45",
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          plugins: {
+            legend: {
+              labels: {
+                color: "#ecfff4",
+                usePointStyle: true,
+              },
+            },
+          },
+          scales: {
+            x: {
+              ticks: {
+                color: "#8ba99e",
+                autoSkip: true,
+                maxTicksLimit: 12,
+              },
+              grid: {
+                color: "rgba(88, 255, 169, 0.06)",
+              },
+            },
+            y: {
+              ticks: {
+                color: "#8ba99e",
+                callback: (value) => `${Number(value).toFixed(1)} °C`,
+              },
+              grid: {
+                color: "rgba(88, 255, 169, 0.08)",
+              },
+            },
+          },
+        },
+      });
 
       function formatClock(timestamp) {
         const date = new Date(timestamp);
@@ -375,6 +516,37 @@
 
       function formatStatusClass(status) {
         return `status-${String(status || "no-data").toLowerCase().replace(/\s+/g, "-")}`;
+      }
+
+      function populateHourSelect() {
+        const currentHour = new Date().getHours();
+        for (let hour = 0; hour < 24; hour += 1) {
+          const option = document.createElement("option");
+          option.value = String(hour);
+          option.textContent = `${String(hour).padStart(2, "0")}:00`;
+          if (hour === currentHour) {
+            option.selected = true;
+          }
+          dom.hourSelect.appendChild(option);
+        }
+      }
+
+      async function loadClimateOverview() {
+        const response = await fetch(climateEndpoint, { cache: "no-store" });
+        const payload = await response.json();
+        hourlyProfileChart.data.labels = payload.hourly_climatology.map((point) => `${String(point.hour).padStart(2, "0")}:00`);
+        hourlyProfileChart.data.datasets[0].data = payload.hourly_climatology.map((point) => point.mean_temperature_c);
+        hourlyProfileChart.update("none");
+      }
+
+      async function loadForecast() {
+        const hour = Number(dom.hourSelect.value);
+        const response = await fetch(`${forecastEndpoint}?hour=${hour}`, { cache: "no-store" });
+        const payload = await response.json();
+        dom.forecastValue.textContent = payload.estimate_temperature_c !== null ? `${payload.estimate_temperature_c.toFixed(1)} °C` : "Unavailable";
+        dom.forecastMeta.textContent = payload.neighbor_count > 0
+          ? `Using ${payload.neighbor_count} recent neighbors for ${String(hour).padStart(2, "0")}:00. Range ${payload.min_neighbor_c}..${payload.max_neighbor_c} °C.`
+          : "No historical neighbors were available for that hour.";
       }
 
       async function loadOverview() {
@@ -415,7 +587,10 @@
           : "Overview synchronized to Europe/Copenhagen.";
       }
 
-      loadOverview().catch((error) => {
+      populateHourSelect();
+      dom.hourSelect.addEventListener("change", loadForecast);
+
+      Promise.all([loadOverview(), loadClimateOverview(), loadForecast()]).catch((error) => {
         dom.footerText.textContent = `Overview failed to load: ${error.message}`;
       });
     </script>
