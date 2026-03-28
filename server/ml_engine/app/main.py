@@ -14,8 +14,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from influxdb_client import InfluxDBClient
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.metrics import accuracy_score, mean_absolute_error, r2_score
 
 
@@ -50,6 +49,9 @@ PHASE_FEATURE_COLUMNS = [
     "raw_mean_5s",
     "sample_count_5s",
 ]
+DAYLIGHT_PHASES = {"Sunrise", "Day", "Sunset"}
+SUNSET_PHASES = {"Day", "Sunset"}
+SUNRISE_PHASES = {"Night", "Sunrise"}
 
 
 @dataclass(slots=True)
@@ -349,7 +351,13 @@ from(bucket: "{self.settings.influxdb_bucket}")
         train_frame = trainable.iloc[:split_index]
         test_frame = trainable.iloc[split_index:]
 
-        model = LinearRegression()
+        model = RandomForestRegressor(
+            n_estimators=120,
+            max_depth=10,
+            min_samples_leaf=4,
+            random_state=42,
+            n_jobs=1,
+        )
         model.fit(train_frame[feature_columns], train_frame[target_column])
 
         predictions = model.predict(test_frame[feature_columns])
@@ -367,6 +375,8 @@ from(bucket: "{self.settings.influxdb_bucket}")
             "mae_minutes": round(mae, 2),
             "r2_score": round(r2, 4),
             "confidence": self._confidence_from_error(mae),
+            "target_min": round(float(trainable[target_column].min()), 4),
+            "target_max": round(float(trainable[target_column].max()), 4),
             "model_path": str(model_path),
             "model": model,
         }
@@ -431,7 +441,7 @@ from(bucket: "{self.settings.influxdb_bucket}")
             prepared,
             target_column="minute_of_day",
             model_name="time_of_day_model",
-            allowed_phases={"Night", "Sunrise", "Day", "Sunset"},
+            allowed_phases=DAYLIGHT_PHASES,
             feature_columns=TIME_FEATURE_COLUMNS,
         )
         phase_classifier = self.train_phase_classifier(prepared)
@@ -439,14 +449,14 @@ from(bucket: "{self.settings.influxdb_bucket}")
             prepared,
             target_column="time_to_sunset_minutes",
             model_name="time_to_sunset_model",
-            allowed_phases={"Day", "Sunset"},
+            allowed_phases=SUNSET_PHASES,
             feature_columns=TIME_FEATURE_COLUMNS,
         )
         sunrise_model = self.train_regressor(
             prepared,
             target_column="time_to_sunrise_minutes",
             model_name="time_to_sunrise_model",
-            allowed_phases={"Night", "Sunrise"},
+            allowed_phases=SUNRISE_PHASES,
             feature_columns=TIME_FEATURE_COLUMNS,
         )
 
@@ -456,15 +466,19 @@ from(bucket: "{self.settings.influxdb_bucket}")
         sunset_eta = None
         sunrise_eta = None
 
-        if time_model["available"]:
+        if time_model["available"] and predicted_phase in DAYLIGHT_PHASES:
             ai_time_estimate = float(time_model["model"].predict(latest_time_features)[0])
         if phase_classifier["available"]:
             predicted_phase = str(phase_classifier["model"].predict(latest_phase_features)[0])
             probabilities = phase_classifier["model"].predict_proba(latest_phase_features)[0]
             phase_probability = float(np.max(probabilities))
-        if sunset_model["available"] and predicted_phase in {"Day", "Sunset"}:
+        if time_model["available"] and predicted_phase in DAYLIGHT_PHASES:
+            ai_time_estimate = float(time_model["model"].predict(latest_time_features)[0])
+        else:
+            ai_time_estimate = None
+        if sunset_model["available"] and predicted_phase in SUNSET_PHASES:
             sunset_eta = float(sunset_model["model"].predict(latest_time_features)[0])
-        if sunrise_model["available"] and predicted_phase in {"Night", "Sunrise"}:
+        if sunrise_model["available"] and predicted_phase in SUNRISE_PHASES:
             sunrise_eta = float(sunrise_model["model"].predict(latest_time_features)[0])
 
         sunset_eta = self._sanitize_eta(sunset_eta)
@@ -518,6 +532,7 @@ from(bucket: "{self.settings.influxdb_bucket}")
                 "confidence": time_model.get("confidence", "Unavailable"),
                 "mae_minutes": time_model.get("mae_minutes"),
                 "r2_score": time_model.get("r2_score"),
+                "active_for_phase": predicted_phase in DAYLIGHT_PHASES,
             },
             "estimated_sunset": {
                 "display_eta": self._minutes_to_eta(sunset_eta),

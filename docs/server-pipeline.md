@@ -159,16 +159,20 @@ Training cadence:
 Current model choices:
 
 - lightweight `RandomForestClassifier` for phase detection
-- lightweight `LinearRegression` regressors for time estimation
+- lightweight `RandomForestRegressor` regressors for solar-clock and event ETA estimation
 
 The current online-training stack intentionally does not feed `hour` or `minute` into any live model. The solar-clock regressor is trained from light-derived features only, and the phase classifier also avoids direct clock inputs.
 
 Current targets:
 
 - phase classification: `Night`, `Sunrise`, `Day`, `Sunset`, `Anomaly`
-- local time-of-day estimate
+- local solar-clock estimate during `Sunrise`, `Day`, and `Sunset`
 - `time_to_sunset` for `Day` and `Sunset`
 - `time_to_sunrise` for `Night` and `Sunrise`
+
+Important practical constraint:
+
+- the solar-clock regressor is intentionally disabled at night because near-zero light levels do not contain enough information to resolve absolute clock time in a reliable way
 
 Model artifacts and latest insight snapshots are written into a shared `/models` volume.
 

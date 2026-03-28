@@ -117,11 +117,12 @@ The frontend is a single-file dashboard that proxies API traffic through Nginx a
 The current ML stack includes:
 
 - a phase classifier for `Night`, `Sunrise`, `Day`, `Sunset`, and `Anomaly`
-- a time-of-day regressor for the AI solar clock estimate
+- a daylight-only solar-clock regressor for the AI solar clock estimate
 - a day/sunset regressor for sunset ETA
 - a night/sunrise regressor for sunrise ETA
 - engineered features such as raw voltage, smoothed voltage, rolling standard deviation, multi-window deltas, and `voltage_to_daily_max_ratio`
 - no `hour` or `minute` inputs for any live model, so the solar-clock estimate is driven purely by light behavior
+- a lightweight tree ensemble for the regressors, because linear regression was too weak for the non-linear sunrise and sunset curve
 - a 5-second Influx downsampling step for training so the ML engine stays lightweight even when live ingestion runs at `1 Hz`
 
 ## Development
