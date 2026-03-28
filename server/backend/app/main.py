@@ -106,8 +106,9 @@ from(bucket: "{self.settings.influxdb_bucket}")
   |> range(start: -24h)
   |> filter(fn: (r) => r["_measurement"] == "{self.settings.influxdb_measurement}")
   |> filter(fn: (r) => r["sensor_id"] == "{sensor_id}")
-  |> last()
   |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
+  |> sort(columns: ["_time"], desc: true)
+  |> limit(n: 1)
   |> keep(
     columns: [
       "_time",
