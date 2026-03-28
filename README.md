@@ -15,7 +15,6 @@ The current repository state is a migration-ready MVP: the server stack is alrea
 - Command-center dashboard with live volatility, delta, residuals, percentiles, SNR, and uptime.
 - Lightweight FastAPI surface for history, live telemetry, AI insights, and analytics summaries.
 - Cloudflare Tunnel routing guidance that keeps the existing public site intact.
-- Legacy Raspberry Pi ADS1115 edge retained as a reference during migration.
 
 ## Documentation
 
@@ -52,14 +51,6 @@ cp include/secrets.example.h include/secrets.h
 # then build and flash with PlatformIO from your development machine
 ```
 
-The repository also retains the legacy Raspberry Pi edge node:
-
-```bash
-cp edge/.env.example edge/.env
-python3 -m pip install -r edge/requirements.txt
-python3 edge/solar_node.py
-```
-
 The default ESP32 edge runtime behavior is:
 
 - sample `GPIO34` five times per second
@@ -94,10 +85,6 @@ Initial server layout:
 
 Edge layout:
 
-- `edge/solar_node.py`
-- `edge/.env.example`
-- `edge/requirements.txt`
-- `edge/systemd/sollar-panel-edge.service`
 - `edge/esp32/platformio.ini`
 - `edge/esp32/include/secrets.example.h`
 - `edge/esp32/src/main.cpp`

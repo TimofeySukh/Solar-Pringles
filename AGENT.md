@@ -10,7 +10,7 @@ This repository defines an end-to-end IoT and machine learning pipeline for a sm
 - Backend: Dockerized MQTT, time-series storage, ingestion workers, API, and frontend.
 - Goal: Collect stable telemetry, preserve raw signal quality, and build a clean dataset for future ML models.
 
-The legacy Raspberry Pi Zero 2 W implementation remains in the repository only as a reference during migration. New edge changes should target the ESP32 firmware path first.
+The ESP32 firmware path is the active edge baseline. New edge changes should target the ESP32 implementation first.
 
 ## Language Policy
 

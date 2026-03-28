@@ -46,12 +46,6 @@ The server receives telemetry, stores the raw signal in a time-series database, 
 - `DHT sensor library`
 - MQTT publish every second
 
-Legacy reference path:
-
-- Python 3 acquisition loop on Raspberry Pi Zero 2 W
-- ADS1115 over I2C
-- local CSV append-only backup
-
 ### Server Side
 
 - `Mosquitto` in Docker

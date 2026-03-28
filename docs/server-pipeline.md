@@ -230,7 +230,7 @@ The current scaffold now includes:
 
 `/api/insights` serves the latest ML snapshot written by `ml_engine`.
 
-`/api/analytics` returns last-hour percentiles, SNR, Raspberry Pi uptime, a rolling raw-voltage window, delta-per-second points, recent AI residual history, latest engineered features, and phase prediction output.
+`/api/analytics` returns last-hour percentiles, SNR, edge uptime, a rolling raw-voltage window, delta-per-second points, recent AI residual history, latest engineered features, and phase prediction output.
 
 ### Timezone Handling
 

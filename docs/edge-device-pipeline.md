@@ -10,12 +10,6 @@
   - `SDA`: `GPIO18`
   - `SCL`: `GPIO19`
 
-Legacy reference hardware:
-
-- Raspberry Pi Zero 2 W
-- ADS1115 on I2C address `0x48`
-- solar panel on ADS1115 `A0`
-
 ## Electrical and Reliability Constraints
 
 - The current assembly is mechanically unstable and may produce sub-second disconnects.
@@ -124,12 +118,9 @@ The edge firmware should be treated as a long-running live device:
 - keep MQTT reconnect logic independent from sensor reads
 - publish a backend-compatible payload so the server path does not fork
 
-## Implemented Nodes
+## Implemented Node
 
-The repository now includes:
-
-- legacy Raspberry Pi node in `edge/solar_node.py`
-- ESP32 migration target in `edge/esp32/`
+The repository now includes the ESP32 edge implementation in `edge/esp32/`.
 
 Current ESP32 behavior:
 
