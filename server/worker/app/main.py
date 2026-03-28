@@ -33,7 +33,7 @@ class Settings:
     influxdb_org: str = os.getenv("INFLUXDB_ORG", "sollar_panel")
     influxdb_bucket: str = os.getenv("INFLUXDB_BUCKET", "solar_metrics")
     influxdb_measurement: str = os.getenv("INFLUXDB_MEASUREMENT", "solar_voltage")
-    default_sensor_id: str = os.getenv("INFLUXDB_SENSOR_ID", "edge-rpi-zero-2w")
+    default_sensor_id: str = os.getenv("INFLUXDB_SENSOR_ID", "esp32-solar-node")
 
 
 def parse_timestamp(raw_value: str | None) -> datetime:
