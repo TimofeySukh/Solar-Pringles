@@ -103,40 +103,6 @@ from(bucket: "{self.settings.influxdb_bucket}")
             rows.extend(self._row_to_point(record) for record in table.records)
         return rows
 
-    def _query_latest_point(self, sensor_id: str) -> dict[str, Any] | None:
-        query = f"""
-from(bucket: "{self.settings.influxdb_bucket}")
-  |> range(start: -24h)
-  |> filter(fn: (r) => r["_measurement"] == "{self.settings.influxdb_measurement}")
-  |> filter(fn: (r) => r["sensor_id"] == "{sensor_id}")
-  |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
-  |> sort(columns: ["_time"], desc: true)
-  |> limit(n: 1)
-  |> keep(
-    columns: [
-      "_time",
-      "sensor_id",
-      "raw_voltage",
-      "raw_voltage_last",
-      "smoothed_voltage",
-      "smoothed_voltage_last",
-      "raw_min_5s",
-      "raw_max_5s",
-      "raw_mean_5s",
-      "sample_count_5s",
-      "uptime_seconds",
-      "adc_raw",
-      "temperature_c",
-      "humidity_pct"
-    ]
-  )
-"""
-        tables = self.query_api.query(query)
-        for table in tables:
-            for record in table.records:
-                return self._row_to_point(record)
-        return None
-
     @staticmethod
     def _row_to_point(record: Any) -> dict[str, Any]:
         recorded_at = record.get_time()
@@ -170,7 +136,10 @@ from(bucket: "{self.settings.influxdb_bucket}")
         }
 
     def fetch_latest(self, sensor_id: str) -> dict[str, Any] | None:
-        return self._query_latest_point(sensor_id)
+        points = self._query_points(sensor_id, start=utc_now() - timedelta(minutes=2))
+        if not points:
+            return None
+        return points[-1]
 
     def fetch_history(self, sensor_id: str, target_day: date, every_minutes: int) -> list[dict[str, Any]]:
         start_local = datetime.combine(target_day, time.min, tzinfo=LOCAL_TIMEZONE)
